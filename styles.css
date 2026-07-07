@@ -877,4 +877,120 @@ body {
   color: var(--ash);
 }
 
+.history-row-top { cursor: pointer; }
+
+/* ---------- activity detail overlay ---------- */
+.detail-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 18px 34px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.detail-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.detail-icon { font-size: 40px; flex: 0 0 auto; }
+.detail-hero-text { min-width: 0; }
+.detail-name {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 20px;
+  color: var(--bone);
+  text-transform: lowercase;
+}
+.detail-place {
+  font-family: var(--font-data);
+  font-size: 12px;
+  color: var(--gold);
+  margin-top: 2px;
+}
+.detail-meta {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: var(--ash);
+  padding: 10px 0 4px;
+  border-bottom: 1px solid var(--panel);
+  margin-bottom: 6px;
+}
+.detail-section-label {
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--ash);
+  text-transform: lowercase;
+  margin-top: 14px;
+  margin-bottom: 8px;
+}
+.detail-gallery {
+  padding-left: 0;
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+.detail-gallery .gallery-thumb {
+  width: 72px;
+  height: 72px;
+}
+.gallery-thumb-delete {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(20,19,15,0.75);
+  color: var(--bone);
+  font-size: 12px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.detail-comment {
+  width: 100%;
+  min-height: 70px;
+}
+.detail-share-btn {
+  width: 100%;
+  text-align: center;
+  margin-top: 20px;
+  padding: 12px 0;
+}
+
+/* ---------- toast ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 110px;
+  transform: translateX(-50%) translateY(16px);
+  max-width: 86%;
+  background: var(--panel);
+  border: 1px solid var(--gold);
+  color: var(--bone);
+  font-family: var(--font-body);
+  font-size: 13px;
+  text-align: center;
+  text-transform: lowercase;
+  padding: 12px 20px;
+  border-radius: 999px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+#wheelCanvas { cursor: pointer; }
+
 [hidden] { display: none !important; }

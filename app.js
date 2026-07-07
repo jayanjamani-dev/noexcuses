@@ -199,6 +199,17 @@ const editList = $('editList');
 const historyOverlay = $('historyOverlay');
 const historyCloseBtn = $('historyCloseBtn');
 const historyList = $('historyList');
+const detailOverlay = $('detailOverlay');
+const detailCloseBtn = $('detailCloseBtn');
+const detailIcon = $('detailIcon');
+const detailName = $('detailName');
+const detailPlace = $('detailPlace');
+const detailDay = $('detailDay');
+const detailDate = $('detailDate');
+const detailGallery = $('detailGallery');
+const detailComment = $('detailComment');
+const detailShareBtn = $('detailShareBtn');
+const toastEl = $('toast');
 
 // ---------------------------------------------------------------
 // WHEEL RENDERING
@@ -222,13 +233,15 @@ function textColorFor(activity, wedgeIsBone) {
   return wedgeIsBone ? COLORS.ink : COLORS.bone;
 }
 
-function drawWheel() {
-  const size = canvas.width;
+// draws the full wheel face into any context/size/rotation — used both for
+// the live canvas (drawWheel) and for offscreen story-export snapshots of a
+// specific historical wedge (see wedgeRotationFor + drawExport).
+function renderWheelFace(targetCtx, size, rotation, flashIdx) {
   const r = size / 2;
-  ctx.clearRect(0, 0, size, size);
-  ctx.save();
-  ctx.translate(r, r);
-  ctx.rotate(wheelRotation);
+  targetCtx.clearRect(0, 0, size, size);
+  targetCtx.save();
+  targetCtx.translate(r, r);
+  targetCtx.rotate(rotation);
 
   const committed = committedIndices();
 
@@ -238,72 +251,103 @@ function drawWheel() {
     const end = start + WEDGE_ANGLE;
     const isBone = i % 2 === 0;
     const isDone = committed.has(i) && state.committed.find(c => c.index === i).done;
-    const isFlashing = i === flashIndex;
+    const isFlashing = i === flashIdx;
 
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.arc(0, 0, r * 0.985, start, end);
-    ctx.closePath();
-    ctx.fillStyle = isFlashing ? COLORS.gold : (isBone ? COLORS.bone : COLORS.panel);
-    ctx.globalAlpha = isDone && !isFlashing ? 0.32 : 1;
-    ctx.fill();
-    ctx.globalAlpha = 1;
+    targetCtx.beginPath();
+    targetCtx.moveTo(0, 0);
+    targetCtx.arc(0, 0, r * 0.985, start, end);
+    targetCtx.closePath();
+    targetCtx.fillStyle = isFlashing ? COLORS.gold : (isBone ? COLORS.bone : COLORS.panel);
+    targetCtx.globalAlpha = isDone && !isFlashing ? 0.32 : 1;
+    targetCtx.fill();
+    targetCtx.globalAlpha = 1;
 
     // hairline separators
-    ctx.strokeStyle = 'rgba(20,19,15,0.25)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    targetCtx.strokeStyle = 'rgba(20,19,15,0.25)';
+    targetCtx.lineWidth = 1;
+    targetCtx.stroke();
 
     // label — icon + text on a single line, reading outward from hub
     const mid = start + WEDGE_ANGLE / 2;
-    ctx.save();
-    ctx.rotate(mid);
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
+    targetCtx.save();
+    targetCtx.rotate(mid);
+    targetCtx.textAlign = 'right';
+    targetCtx.textBaseline = 'middle';
 
     const labelR = r * 0.93;
-    ctx.translate(labelR, 0);
+    targetCtx.translate(labelR, 0);
 
     const iconSize = Math.round(r * 0.058);
     const textSize = Math.round(r * 0.042);
-    ctx.font = `600 ${textSize}px 'Space Grotesk', sans-serif`;
-    ctx.fillStyle = isFlashing ? COLORS.ink : textColorFor(activity, isBone);
-    const textWidth = ctx.measureText(activity.label).width;
+    targetCtx.font = `600 ${textSize}px 'Space Grotesk', sans-serif`;
+    targetCtx.fillStyle = isFlashing ? COLORS.ink : textColorFor(activity, isBone);
+    const textWidth = targetCtx.measureText(activity.label).width;
 
     // draw label text first (rightmost/outermost), then icon just left of it
-    ctx.fillText(activity.label, 0, 0);
-    ctx.font = `${iconSize}px sans-serif`;
-    ctx.fillText(activity.icon, -textWidth - iconSize * 0.35, 0);
+    targetCtx.fillText(activity.label, 0, 0);
+    targetCtx.font = `${iconSize}px sans-serif`;
+    targetCtx.fillText(activity.icon, -textWidth - iconSize * 0.35, 0);
 
     if (isDone && !isFlashing) {
       // vermilion strike-through across the whole label
-      ctx.strokeStyle = COLORS.vermilion;
-      ctx.lineWidth = Math.max(1.5, r * 0.012);
-      ctx.beginPath();
-      ctx.moveTo(-textWidth - iconSize * 1.1, 0);
-      ctx.lineTo(r * 0.02, 0);
-      ctx.stroke();
+      targetCtx.strokeStyle = COLORS.vermilion;
+      targetCtx.lineWidth = Math.max(1.5, r * 0.012);
+      targetCtx.beginPath();
+      targetCtx.moveTo(-textWidth - iconSize * 1.1, 0);
+      targetCtx.lineTo(r * 0.02, 0);
+      targetCtx.stroke();
     }
-    ctx.restore();
+    targetCtx.restore();
   }
 
   // outer rim — vermilion base with a thin gold accent ring just inside it
-  ctx.beginPath();
-  ctx.arc(0, 0, r * 0.985, 0, Math.PI * 2);
-  ctx.lineWidth = Math.max(2, r * 0.02);
-  ctx.strokeStyle = COLORS.vermilion;
-  ctx.stroke();
+  targetCtx.beginPath();
+  targetCtx.arc(0, 0, r * 0.985, 0, Math.PI * 2);
+  targetCtx.lineWidth = Math.max(2, r * 0.02);
+  targetCtx.strokeStyle = COLORS.vermilion;
+  targetCtx.stroke();
 
-  ctx.beginPath();
-  ctx.arc(0, 0, r * 0.985 - Math.max(2, r * 0.02) * 0.9, 0, Math.PI * 2);
-  ctx.lineWidth = Math.max(1, r * 0.008);
-  ctx.strokeStyle = COLORS.gold;
-  ctx.stroke();
+  targetCtx.beginPath();
+  targetCtx.arc(0, 0, r * 0.985 - Math.max(2, r * 0.02) * 0.9, 0, Math.PI * 2);
+  targetCtx.lineWidth = Math.max(1, r * 0.008);
+  targetCtx.strokeStyle = COLORS.gold;
+  targetCtx.stroke();
 
-  ctx.restore();
+  targetCtx.restore();
+}
+
+function drawWheel() {
+  renderWheelFace(ctx, canvas.width, wheelRotation, flashIndex);
+}
+
+// the rotation that puts a given wedge's center pointing straight up at the
+// pointer — same math the spin animation lands on, reused for static
+// snapshots of a specific (possibly historical) wedge.
+function wedgeRotationFor(index) {
+  const wedgeCenterLocal = (index + 0.5) * WEDGE_ANGLE;
+  return normalizeAngle(-Math.PI / 2 - wedgeCenterLocal);
 }
 
 window.addEventListener('resize', resizeCanvas);
+
+// tap a wedge on the wheel at any time: completed activities open the full
+// detail modal (photos, notes, share). mystery/mate's-pick/stranger wedges
+// stay hidden until they're actually done — same rule as everywhere else.
+canvas.addEventListener('click', (e) => {
+  if (spinning) return;
+  const rect = canvas.getBoundingClientRect();
+  const cx = e.clientX - rect.left - rect.width / 2;
+  const cy = e.clientY - rect.top - rect.height / 2;
+  const dist = Math.hypot(cx, cy);
+  if (dist > rect.width / 2 * 0.99) return; // outside the wheel circle
+  const screenAngle = normalizeAngle(Math.atan2(cy, cx));
+  const localAngle = normalizeAngle(screenAngle - wheelRotation);
+  const index = Math.floor(localAngle / WEDGE_ANGLE) % 30;
+  const entry = state.committed.find(c => c.index === index);
+  if (!entry) return; // never landed on this wedge yet
+  if (!entry.done) { showToast("still in progress — finish it from the mission bar."); return; }
+  openActivityDetail(index);
+});
 
 // ---------------------------------------------------------------
 // AUDIO — Web Audio API, all wrapped in try/catch
@@ -665,6 +709,7 @@ crossOffBtn.addEventListener('click', () => {
   pending.doneAt = Date.now();
   saveState();
   render();
+  showToast(motivationalMessage());
 });
 
 missionFillSaveBtn.addEventListener('click', () => {
@@ -738,8 +783,10 @@ function render() {
 // ---------------------------------------------------------------
 // STORY EXPORT — 1080x1920 PNG
 // ---------------------------------------------------------------
-async function drawExport(index) {
+async function drawExport(index, opts = {}) {
   await (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());
+
+  const day = opts.day != null ? opts.day : currentDay();
 
   const ec = exportCanvas.getContext('2d');
   const W = 1080, H = 1920;
@@ -772,12 +819,14 @@ async function drawExport(index) {
   ec.fillText('DAY', W - 220, 130);
   ec.font = `700 64px 'Courier Prime', monospace`;
   ec.fillStyle = COLORS.vermilion;
-  ec.fillText(String(currentDay()).padStart(2, '0'), W - 70, 150);
+  ec.fillText(String(day).padStart(2, '0'), W - 70, 150);
   ec.font = `400 26px 'Courier Prime', monospace`;
   ec.fillStyle = COLORS.ash;
   ec.fillText('/ 30', W - 70, 190);
 
-  // wheel snapshot — render the live canvas at its landed rotation
+  // wheel snapshot — a specific historical wedge gets a static snapshot
+  // rendered at that wedge's landed rotation; the just-landed / pending
+  // mission case (no snapshotIndex) uses the live canvas as-is.
   const wheelSize = 860;
   const wx = (W - wheelSize) / 2;
   const wy = 280;
@@ -785,7 +834,16 @@ async function drawExport(index) {
   ec.beginPath();
   ec.arc(wx + wheelSize / 2, wy + wheelSize / 2, wheelSize / 2, 0, Math.PI * 2);
   ec.closePath();
-  ec.drawImage(canvas, wx, wy, wheelSize, wheelSize);
+  if (opts.snapshotIndex != null) {
+    const snapSize = wheelSize * 2;
+    const off = document.createElement('canvas');
+    off.width = snapSize;
+    off.height = snapSize;
+    renderWheelFace(off.getContext('2d'), snapSize, wedgeRotationFor(opts.snapshotIndex), opts.snapshotIndex);
+    ec.drawImage(off, wx, wy, wheelSize, wheelSize);
+  } else {
+    ec.drawImage(canvas, wx, wy, wheelSize, wheelSize);
+  }
   ec.restore();
 
   // pointer for export
@@ -809,7 +867,10 @@ async function drawExport(index) {
 
   // bottom card
   const a = getActivity(index);
-  const revealed = a.cat !== 'mystery';
+  const label = opts.reveal ? historyLabel(index) : null;
+  const revealed = opts.reveal ? true : a.cat !== 'mystery';
+  const displayName = label ? label.name : a.name;
+  const displayPlace = label ? label.place : a.place;
   const cardY = wy + wheelSize + 90;
   ec.fillStyle = COLORS.panel;
   roundRect(ec, 60, cardY, W - 120, H - cardY - 90, 34);
@@ -822,18 +883,18 @@ async function drawExport(index) {
   ec.textAlign = 'left';
   ec.font = `700 28px 'Courier Prime', monospace`;
   ec.fillStyle = COLORS.ash;
-  ec.fillText(`DAY ${String(currentDay()).padStart(2, '0')} / 30`, 110, cardY + 70);
+  ec.fillText(`DAY ${String(day).padStart(2, '0')} / 30`, 110, cardY + 70);
 
   ec.font = `64px sans-serif`;
   ec.fillText(revealed ? a.icon : '🎁', 110, cardY + 160);
 
   ec.font = `900 52px Fraunces, serif`;
   ec.fillStyle = COLORS.bone;
-  ec.fillText(revealed ? a.name : 'mystery', 220, cardY + 150);
+  ec.fillText(revealed ? displayName : 'mystery', 220, cardY + 150);
 
   ec.font = `400 30px 'Space Grotesk', sans-serif`;
   ec.fillStyle = COLORS.gold;
-  ec.fillText(revealed ? a.place : '', 220, cardY + 195);
+  ec.fillText(revealed ? (displayPlace || '') : '', 220, cardY + 195);
 
   ec.textAlign = 'right';
   ec.font = `700 26px 'Courier Prime', monospace`;
@@ -879,16 +940,18 @@ async function shareOrDownloadBlob(blob, filename, text) {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
-async function saveStory(index) {
+async function saveStory(index, opts = {}) {
   if (index == null || index < 0) return;
   try {
-    await drawExport(index);
-    const a = getActivity(index);
+    await drawExport(index, opts);
+    const day = opts.day != null ? opts.day : currentDay();
     const isMystery = ACTIVITIES[index].cat === 'mystery';
-    const caption = `day ${String(currentDay()).padStart(2, '0')} of 30 — ${isMystery ? 'mystery' : a.name} #noexcuses #30daychallenge`;
+    const label = opts.reveal ? historyLabel(index) : null;
+    const displayName = label ? label.name : (isMystery ? 'mystery' : getActivity(index).name);
+    const caption = `day ${String(day).padStart(2, '0')} of 30 — ${displayName} #noexcuses #30daychallenge`;
     exportCanvas.toBlob((blob) => {
       if (!blob) return;
-      shareOrDownloadBlob(blob, `noexcuses-day-${String(currentDay()).padStart(2, '0')}.png`, caption);
+      shareOrDownloadBlob(blob, `noexcuses-day-${String(day).padStart(2, '0')}.png`, caption);
     }, 'image/png');
   } catch (e) {
     console.warn('noexcuses: story export failed', e);
@@ -1152,6 +1215,16 @@ async function getMediaForEntry(entryKey) {
   }
 }
 
+async function deleteMedia(id) {
+  const db = await getMediaDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(MEDIA_STORE, 'readwrite');
+    tx.objectStore(MEDIA_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 function compressImageToBlob(file, maxDim = 1080, quality = 0.75) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -1208,6 +1281,7 @@ photoInput.addEventListener('change', async () => {
     }
   }
   populateHistoryList();
+  if (currentDetailRefresh) currentDetailRefresh();
 });
 
 let galleryObjectUrls = [];
@@ -1216,14 +1290,17 @@ function revokeGalleryUrls() {
   galleryObjectUrls = [];
 }
 
-async function renderGallery(galleryEl, entry) {
+// urlsArray tracks created object URLs for later revocation (defaults to the
+// history list's tracker). onDelete, when passed, adds a small × button to
+// each thumb — used by the detail modal, omitted in the compact history rows.
+async function renderGallery(galleryEl, entry, urlsArray = galleryObjectUrls, onDelete) {
   const items = await getMediaForEntry(entry.committedAt);
   galleryEl.innerHTML = '';
   items.forEach((item) => {
     const thumb = document.createElement('div');
     thumb.className = 'gallery-thumb';
     const url = URL.createObjectURL(item.blob);
-    galleryObjectUrls.push(url);
+    urlsArray.push(url);
     if (item.type === 'video') {
       const vid = document.createElement('video');
       vid.src = url;
@@ -1239,6 +1316,18 @@ async function renderGallery(galleryEl, entry) {
       img.src = url;
       img.alt = '';
       thumb.appendChild(img);
+    }
+    if (onDelete) {
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'gallery-thumb-delete';
+      delBtn.textContent = '×';
+      delBtn.setAttribute('aria-label', 'remove');
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        onDelete(item.id);
+      });
+      thumb.appendChild(delBtn);
     }
     galleryEl.appendChild(thumb);
   });
@@ -1286,6 +1375,7 @@ function buildHistoryRow(entry, dayIndex) {
   top.appendChild(icon);
   top.appendChild(main);
   top.appendChild(date);
+  top.addEventListener('click', () => openActivityDetail(entry.index));
 
   const gallery = document.createElement('div');
   gallery.className = 'history-row-gallery';
@@ -1312,6 +1402,114 @@ function populateHistoryList() {
   const frag = document.createDocumentFragment();
   done.forEach((entry, i) => frag.appendChild(buildHistoryRow(entry, i + 1)));
   historyList.appendChild(frag);
+}
+
+// ---------------------------------------------------------------
+// ACTIVITY DETAIL MODAL — tap a completed wedge on the wheel, or a row in
+// the activity tracker, to see the full record: photos/video, notes, share.
+// only ever opened for done entries, so mystery/mate/stranger reveal is
+// never a risk of an accidental spoiler.
+// ---------------------------------------------------------------
+let currentDetailIndex = -1;
+let currentDetailRefresh = null;
+let detailObjectUrls = [];
+function revokeDetailUrls() {
+  detailObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  detailObjectUrls = [];
+}
+
+function formatHistoryDateTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const datePart = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const timePart = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return `${datePart} · ${timePart}`;
+}
+
+function openActivityDetail(index) {
+  const entry = state.committed.find(c => c.index === index && c.done);
+  if (!entry) return;
+  currentDetailIndex = index;
+
+  const a = getActivity(index);
+  const label = historyLabel(index);
+  const doneList = state.committed.filter(c => c.done);
+  const dayNumber = doneList.indexOf(entry) + 1;
+
+  detailIcon.textContent = a.icon;
+  detailName.textContent = label.name;
+  detailPlace.textContent = label.place || '';
+  detailDay.textContent = `DAY ${String(dayNumber).padStart(2, '0')} / 30`;
+  detailDate.textContent = formatHistoryDateTime(entry.doneAt);
+  detailComment.value = (overrides[index] && overrides[index].comment) || '';
+
+  function refreshDetailGallery() {
+    revokeDetailUrls();
+    renderGallery(detailGallery, entry, detailObjectUrls, (id) => {
+      if (!window.confirm('remove this photo/video?')) return;
+      deleteMedia(id).then(refreshDetailGallery);
+    });
+  }
+  currentDetailRefresh = refreshDetailGallery;
+  refreshDetailGallery();
+
+  detailOverlay.hidden = false;
+}
+
+detailCloseBtn.addEventListener('click', () => {
+  detailOverlay.hidden = true;
+  currentDetailIndex = -1;
+  currentDetailRefresh = null;
+  revokeDetailUrls();
+  populateHistoryList(); // reflect any photo/comment changes in the tracker list
+});
+
+detailComment.addEventListener('blur', () => {
+  if (currentDetailIndex === -1) return;
+  setOverride(currentDetailIndex, 'comment', detailComment.value.trim());
+});
+
+detailShareBtn.addEventListener('click', () => {
+  if (currentDetailIndex === -1) return;
+  const entry = state.committed.find(c => c.index === currentDetailIndex && c.done);
+  if (!entry) return;
+  const doneList = state.committed.filter(c => c.done);
+  const day = doneList.indexOf(entry) + 1;
+  saveStory(currentDetailIndex, { day, reveal: true, snapshotIndex: currentDetailIndex });
+});
+
+// ---------------------------------------------------------------
+// TOAST — brief motivational / status messages
+// ---------------------------------------------------------------
+let toastTimer = null;
+function showToast(msg, duration = 2600) {
+  if (!toastEl) return;
+  toastEl.textContent = msg;
+  toastEl.hidden = false;
+  void toastEl.offsetWidth; // reflow to restart the transition
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toastEl.classList.remove('show');
+    setTimeout(() => { toastEl.hidden = true; }, 260);
+  }, duration);
+}
+
+function motivationalMessage() {
+  const done = doneCount();
+  const left = 30 - done;
+  if (done >= 30) return "no more excuses. you did the whole thing.";
+  if (left <= 3) return `${left} to go. so close — don't stop now.`;
+  if (left <= 5) return `almost there. ${left} left.`;
+  if (done > 0 && done % 10 === 0) return `${done} down. keep going.`;
+  const pool = [
+    "well done. that's one more excuse gone.",
+    "nice work — logged and locked in.",
+    "that's how it's done.",
+    "another one crossed off. keep the streak.",
+    "solid. on to the next.",
+  ];
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 menuHistory.addEventListener('click', () => {
