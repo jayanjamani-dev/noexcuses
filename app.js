@@ -156,6 +156,7 @@ const missionIcon = $('missionIcon');
 const missionName = $('missionName');
 const missionPlace = $('missionPlace');
 const crossOffBtn = $('crossOffBtn');
+const swapBtn = $('swapBtn');
 const resultOverlay = $('resultOverlay');
 const resultCloseBtn = $('resultCloseBtn');
 const resultIcon = $('resultIcon');
@@ -176,10 +177,14 @@ const menuBackdrop = $('menuBackdrop');
 const menuSaveStory = $('menuSaveStory');
 const menuRecordClip = $('menuRecordClip');
 const menuEditActivities = $('menuEditActivities');
+const menuHistory = $('menuHistory');
 const menuReset = $('menuReset');
 const editOverlay = $('editOverlay');
 const editCloseBtn = $('editCloseBtn');
 const editList = $('editList');
+const historyOverlay = $('historyOverlay');
+const historyCloseBtn = $('historyCloseBtn');
+const historyList = $('historyList');
 
 // ---------------------------------------------------------------
 // WHEEL RENDERING
@@ -563,6 +568,16 @@ crossOffBtn.addEventListener('click', () => {
   render();
 });
 
+swapBtn.addEventListener('click', () => {
+  const pending = pendingEntry();
+  if (!pending) return;
+  if (!window.confirm("swap this mission for a new spin? it won't count as done — you can land on it again another day.")) return;
+  const idx = state.committed.indexOf(pending);
+  if (idx !== -1) state.committed.splice(idx, 1);
+  saveState();
+  render();
+});
+
 finaleResetBtn.addEventListener('click', () => confirmReset());
 
 function confirmReset() {
@@ -924,6 +939,76 @@ menuEditActivities.addEventListener('click', () => {
 
 editCloseBtn.addEventListener('click', () => {
   editOverlay.hidden = true;
+});
+
+// ---------------------------------------------------------------
+// HISTORY — what you've actually completed, in order
+// ---------------------------------------------------------------
+function formatHistoryDate(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function buildHistoryRow(entry, dayIndex) {
+  const a = getActivity(entry.index);
+  const revealed = a.cat !== 'mystery';
+  const row = document.createElement('div');
+  row.className = 'history-row';
+
+  const day = document.createElement('div');
+  day.className = 'history-row-day';
+  day.textContent = `DAY ${String(dayIndex).padStart(2, '0')}`;
+
+  const icon = document.createElement('div');
+  icon.className = 'history-row-icon';
+  icon.textContent = a.icon;
+
+  const main = document.createElement('div');
+  main.className = 'history-row-main';
+  const name = document.createElement('div');
+  name.className = 'history-row-name';
+  name.textContent = revealed ? a.name : 'mystery';
+  const place = document.createElement('div');
+  place.className = 'history-row-place';
+  place.textContent = revealed ? a.place : '';
+  main.appendChild(name);
+  main.appendChild(place);
+
+  const date = document.createElement('div');
+  date.className = 'history-row-date';
+  date.textContent = formatHistoryDate(entry.doneAt);
+
+  row.appendChild(day);
+  row.appendChild(icon);
+  row.appendChild(main);
+  row.appendChild(date);
+  return row;
+}
+
+function populateHistoryList() {
+  historyList.innerHTML = '';
+  const done = state.committed.filter(c => c.done);
+  if (done.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'history-empty';
+    empty.textContent = 'nothing crossed off yet — go spin.';
+    historyList.appendChild(empty);
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  done.forEach((entry, i) => frag.appendChild(buildHistoryRow(entry, i + 1)));
+  historyList.appendChild(frag);
+}
+
+menuHistory.addEventListener('click', () => {
+  closeMenu();
+  populateHistoryList();
+  historyOverlay.hidden = false;
+});
+
+historyCloseBtn.addEventListener('click', () => {
+  historyOverlay.hidden = true;
 });
 
 // ---------------------------------------------------------------

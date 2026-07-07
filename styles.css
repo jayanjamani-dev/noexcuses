@@ -388,6 +388,18 @@ body {
   padding: 10px 0;
   border-radius: 999px;
 }
+.btn-swap {
+  flex: 0 0 auto;
+  background: transparent;
+  color: var(--ash);
+  border: 1.5px solid var(--ash) !important;
+  font-weight: 500;
+  font-size: 12px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.btn-swap:active { transform: scale(0.96); }
 .btn-story {
   flex: 0 0 auto;
   background: transparent;
@@ -657,5 +669,51 @@ body {
   min-height: 44px;
 }
 .edit-input-place { color: var(--gold); }
+
+/* ---------- history ---------- */
+.history-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--panel);
+}
+.history-row-day {
+  font-family: var(--font-data);
+  font-size: 10px;
+  color: var(--ash);
+  width: 46px;
+  flex: 0 0 auto;
+}
+.history-row-icon { font-size: 22px; flex: 0 0 auto; }
+.history-row-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.history-row-name {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--bone);
+  text-transform: lowercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.history-row-place {
+  font-family: var(--font-data);
+  font-size: 10px;
+  color: var(--gold);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.history-row-date {
+  font-family: var(--font-data);
+  font-size: 10px;
+  color: var(--ash);
+  flex: 0 0 auto;
+  text-align: right;
+}
+.history-empty {
+  padding: 40px 10px;
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--ash);
+}
 
 [hidden] { display: none !important; }
