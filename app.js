@@ -52,6 +52,7 @@ const COLORS = {
 };
 
 const STORAGE_KEY = 'noexcuses:v1';
+const OVERRIDES_KEY = 'noexcuses:overrides:v1';
 const WEDGE_ANGLE = (Math.PI * 2) / 30;
 
 // ---------------------------------------------------------------
@@ -98,6 +99,48 @@ function currentDay() {
 }
 
 // ---------------------------------------------------------------
+// ACTIVITY OVERRIDES — user-editable name / place / note per activity
+// ---------------------------------------------------------------
+let overrides = {}; // { [index]: { name, place, note } }
+
+function loadOverrides() {
+  try {
+    const raw = localStorage.getItem(OVERRIDES_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') overrides = parsed;
+  } catch (e) {
+    console.warn('noexcuses: failed to load overrides', e);
+  }
+}
+
+function saveOverrides() {
+  try {
+    localStorage.setItem(OVERRIDES_KEY, JSON.stringify(overrides));
+  } catch (e) {
+    console.warn('noexcuses: failed to save overrides', e);
+  }
+}
+
+function getActivity(index) {
+  const base = ACTIVITIES[index];
+  const o = overrides[index];
+  if (!o) return base;
+  return {
+    ...base,
+    name: (o.name != null && o.name !== '') ? o.name : base.name,
+    place: (o.place != null && o.place !== '') ? o.place : base.place,
+    note: (o.note != null && o.note !== '') ? o.note : base.note,
+  };
+}
+
+function setOverride(index, field, value) {
+  if (!overrides[index]) overrides[index] = {};
+  overrides[index][field] = value;
+  saveOverrides();
+}
+
+// ---------------------------------------------------------------
 // DOM
 // ---------------------------------------------------------------
 const $ = id => document.getElementById(id);
@@ -107,27 +150,36 @@ const ctx = canvas.getContext('2d');
 const pointerEl = $('pointer');
 const shockwaveEl = $('shockwave');
 const spinBtn = $('spinBtn');
+const spinBtnLabel = $('spinBtnLabel');
 const missionBar = $('missionBar');
 const missionIcon = $('missionIcon');
 const missionName = $('missionName');
 const missionPlace = $('missionPlace');
 const crossOffBtn = $('crossOffBtn');
-const saveStoryMissionBtn = $('saveStoryMissionBtn');
 const resultOverlay = $('resultOverlay');
+const resultCloseBtn = $('resultCloseBtn');
 const resultIcon = $('resultIcon');
 const resultName = $('resultName');
 const resultPlace = $('resultPlace');
 const resultNote = $('resultNote');
 const commitBtn = $('commitBtn');
-const saveStoryResultBtn = $('saveStoryResultBtn');
 const dayNum = $('dayNum');
 const crossedCount = $('crossedCount');
 const progressFill = $('progressFill');
-const resetBtn = $('resetBtn');
 const finaleOverlay = $('finaleOverlay');
 const finaleResetBtn = $('finaleResetBtn');
 const saveStoryFinaleBtn = $('saveStoryFinaleBtn');
 const exportCanvas = $('exportCanvas');
+const menuBtn = $('menuBtn');
+const menuPanel = $('menuPanel');
+const menuBackdrop = $('menuBackdrop');
+const menuSaveStory = $('menuSaveStory');
+const menuRecordClip = $('menuRecordClip');
+const menuEditActivities = $('menuEditActivities');
+const menuReset = $('menuReset');
+const editOverlay = $('editOverlay');
+const editCloseBtn = $('editCloseBtn');
+const editList = $('editList');
 
 // ---------------------------------------------------------------
 // WHEEL RENDERING
@@ -183,27 +235,33 @@ function drawWheel() {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // label
+    // label — icon + text on a single line, reading outward from hub
     const mid = start + WEDGE_ANGLE / 2;
     ctx.save();
     ctx.rotate(mid);
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
-    ctx.font = `500 ${Math.round(r * 0.052)}px 'Space Grotesk', sans-serif`;
-    ctx.fillStyle = isFlashing ? COLORS.ink : textColorFor(activity, isBone);
 
     const labelR = r * 0.93;
     ctx.translate(labelR, 0);
-    ctx.fillText(activity.icon, 0, -Math.round(r * 0.045));
-    ctx.font = `600 ${Math.round(r * 0.04)}px 'Space Grotesk', sans-serif`;
-    ctx.fillText(activity.label, 0, Math.round(r * 0.05));
+
+    const iconSize = Math.round(r * 0.058);
+    const textSize = Math.round(r * 0.042);
+    ctx.font = `600 ${textSize}px 'Space Grotesk', sans-serif`;
+    ctx.fillStyle = isFlashing ? COLORS.ink : textColorFor(activity, isBone);
+    const textWidth = ctx.measureText(activity.label).width;
+
+    // draw label text first (rightmost/outermost), then icon just left of it
+    ctx.fillText(activity.label, 0, 0);
+    ctx.font = `${iconSize}px sans-serif`;
+    ctx.fillText(activity.icon, -textWidth - iconSize * 0.35, 0);
 
     if (isDone && !isFlashing) {
-      // vermilion strike-through across the label
+      // vermilion strike-through across the whole label
       ctx.strokeStyle = COLORS.vermilion;
       ctx.lineWidth = Math.max(1.5, r * 0.012);
       ctx.beginPath();
-      ctx.moveTo(-r * 0.5, 0);
+      ctx.moveTo(-textWidth - iconSize * 1.1, 0);
       ctx.lineTo(r * 0.02, 0);
       ctx.stroke();
     }
@@ -243,13 +301,17 @@ function playTick(strength = 1) {
     if (!ac) return;
     const osc = ac.createOscillator();
     const gain = ac.createGain();
-    osc.type = 'square';
-    osc.frequency.value = 520 + Math.random() * 60;
-    gain.gain.setValueAtTime(0.05 * strength, ac.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.06);
-    osc.connect(gain).connect(ac.destination);
+    const filter = ac.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 2200;
+    osc.type = 'triangle';
+    osc.frequency.value = 340 + Math.random() * 40;
+    gain.gain.setValueAtTime(0.001, ac.currentTime);
+    gain.gain.linearRampToValueAtTime(0.06 * strength, ac.currentTime + 0.004);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.05);
+    osc.connect(filter).connect(gain).connect(ac.destination);
     osc.start();
-    osc.stop(ac.currentTime + 0.07);
+    osc.stop(ac.currentTime + 0.06);
   } catch (e) { /* noop */ }
 }
 
@@ -267,16 +329,20 @@ function playWhoosh(duration = 1.4) {
 
     const filter = ac.createBiquadFilter();
     filter.type = 'bandpass';
-    filter.Q.value = 0.8;
-    filter.frequency.setValueAtTime(1800, ac.currentTime);
-    filter.frequency.exponentialRampToValueAtTime(300, ac.currentTime + duration);
+    filter.Q.value = 0.6;
+    filter.frequency.setValueAtTime(1200, ac.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(220, ac.currentTime + duration);
+
+    const lowpass = ac.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.value = 3200;
 
     const gain = ac.createGain();
     gain.gain.setValueAtTime(0.0001, ac.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.22, ac.currentTime + duration * 0.25);
+    gain.gain.exponentialRampToValueAtTime(0.14, ac.currentTime + duration * 0.25);
     gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + duration);
 
-    noise.connect(filter).connect(gain).connect(ac.destination);
+    noise.connect(filter).connect(lowpass).connect(gain).connect(ac.destination);
     noise.start();
     noise.stop(ac.currentTime + duration + 0.05);
   } catch (e) { /* noop */ }
@@ -289,13 +355,14 @@ function playThud() {
     const osc = ac.createOscillator();
     const gain = ac.createGain();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(140, ac.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(50, ac.currentTime + 0.25);
-    gain.gain.setValueAtTime(0.5, ac.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.3);
+    osc.frequency.setValueAtTime(120, ac.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(42, ac.currentTime + 0.28);
+    gain.gain.setValueAtTime(0.001, ac.currentTime);
+    gain.gain.linearRampToValueAtTime(0.4, ac.currentTime + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.32);
     osc.connect(gain).connect(ac.destination);
     osc.start();
-    osc.stop(ac.currentTime + 0.32);
+    osc.stop(ac.currentTime + 0.34);
   } catch (e) { /* noop */ }
 }
 
@@ -303,16 +370,29 @@ function playDing() {
   try {
     const ac = ensureAudio();
     if (!ac) return;
-    const osc = ac.createOscillator();
-    const gain = ac.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(1200, ac.currentTime);
-    gain.gain.setValueAtTime(0.001, ac.currentTime);
-    gain.gain.linearRampToValueAtTime(0.25, ac.currentTime + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.5);
-    osc.connect(gain).connect(ac.destination);
-    osc.start(ac.currentTime + 0.05);
-    osc.stop(ac.currentTime + 0.55);
+    // warm bell: fundamental + a couple of soft harmonics, gently detuned
+    const partials = [
+      { ratio: 1,    gain: 0.22, type: 'sine' },
+      { ratio: 2.01, gain: 0.09, type: 'sine' },
+      { ratio: 3.0,  gain: 0.045, type: 'sine' },
+    ];
+    const base = 880;
+    const master = ac.createGain();
+    master.gain.value = 1;
+    master.connect(ac.destination);
+
+    partials.forEach((p) => {
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = p.type;
+      osc.frequency.value = base * p.ratio;
+      gain.gain.setValueAtTime(0.0001, ac.currentTime);
+      gain.gain.linearRampToValueAtTime(p.gain, ac.currentTime + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.9);
+      osc.connect(gain).connect(master);
+      osc.start(ac.currentTime + 0.04);
+      osc.stop(ac.currentTime + 0.95);
+    });
   } catch (e) { /* noop */ }
 }
 
@@ -349,6 +429,7 @@ function spin() {
   if (winner === -1) return;
   spinning = true;
   spinBtn.disabled = true;
+  if (spinBtnLabel) spinBtnLabel.textContent = 'rolling…';
   ensureAudio();
 
   const wedgeCenterLocal = (winner + 0.5) * WEDGE_ANGLE;
@@ -364,7 +445,7 @@ function spin() {
 
   const windupAngle = 0.18;
   const windupMs = 240;
-  const spinMs = 3400 + Math.random() * 500;
+  const spinMs = 3800 + Math.random() * 700; // ~3.8-4.5s spin
 
   let lastTickWedge = Math.floor(normalizeAngle(startRotation) / WEDGE_ANGLE);
   const t0 = performance.now();
@@ -432,6 +513,7 @@ function finishFlourish(winner) {
     flashIndex = -1;
     drawWheel();
     spinning = false;
+    if (spinBtnLabel) spinBtnLabel.textContent = 'spin';
     showResult(winner);
   }, 420);
 }
@@ -443,7 +525,7 @@ let currentResultIndex = -1;
 
 function showResult(index) {
   currentResultIndex = index;
-  const a = ACTIVITIES[index];
+  const a = getActivity(index);
   const revealed = a.cat !== 'mystery';
   resultIcon.textContent = a.icon;
   resultName.textContent = revealed ? a.name : 'mystery';
@@ -466,6 +548,12 @@ commitBtn.addEventListener('click', () => {
   render();
 });
 
+resultCloseBtn.addEventListener('click', () => {
+  // closing without committing keeps the landed wedge available to spin again
+  resultOverlay.hidden = true;
+  currentResultIndex = -1;
+});
+
 crossOffBtn.addEventListener('click', () => {
   const pending = pendingEntry();
   if (!pending) return;
@@ -475,7 +563,6 @@ crossOffBtn.addEventListener('click', () => {
   render();
 });
 
-resetBtn.addEventListener('click', () => confirmReset());
 finaleResetBtn.addEventListener('click', () => confirmReset());
 
 function confirmReset() {
@@ -512,7 +599,7 @@ function render() {
   if (pending) {
     spinBtn.hidden = true;
     missionBar.hidden = false;
-    const a = ACTIVITIES[pending.index];
+    const a = getActivity(pending.index);
     const revealed = a.cat !== 'mystery';
     missionIcon.textContent = a.icon;
     missionName.textContent = revealed ? a.name : 'mystery';
@@ -597,7 +684,7 @@ async function drawExport(index) {
   ec.fillRect(0, 0, W, H);
 
   // bottom card
-  const a = ACTIVITIES[index];
+  const a = getActivity(index);
   const revealed = a.cat !== 'mystery';
   const cardY = wy + wheelSize + 90;
   ec.fillStyle = COLORS.panel;
@@ -662,35 +749,63 @@ async function saveStory(index) {
   }
 }
 
-saveStoryResultBtn.addEventListener('click', () => saveStory(currentResultIndex));
-saveStoryMissionBtn.addEventListener('click', () => {
-  const pending = pendingEntry();
-  if (pending) saveStory(pending.index);
-});
 saveStoryFinaleBtn.addEventListener('click', () => saveStory(BOSS_INDEX));
+
+// ---------------------------------------------------------------
+// OVERFLOW MENU — save story / record clip / reset
+// ---------------------------------------------------------------
+function openMenu() {
+  menuPanel.hidden = false;
+  menuBackdrop.hidden = false;
+  menuBtn.setAttribute('aria-expanded', 'true');
+}
+function closeMenu() {
+  menuPanel.hidden = true;
+  menuBackdrop.hidden = true;
+  menuBtn.setAttribute('aria-expanded', 'false');
+}
+menuBtn.addEventListener('click', () => {
+  if (menuPanel.hidden) openMenu(); else closeMenu();
+});
+menuBackdrop.addEventListener('click', closeMenu);
+
+menuSaveStory.addEventListener('click', () => {
+  closeMenu();
+  // save whatever is currently relevant: an open result card, else the pending mission
+  let index = -1;
+  if (!resultOverlay.hidden && currentResultIndex !== -1) index = currentResultIndex;
+  else {
+    const pending = pendingEntry();
+    if (pending) index = pending.index;
+  }
+  if (index === -1) {
+    window.alert('spin and commit first — then you can save a story.');
+    return;
+  }
+  saveStory(index);
+});
+
+menuReset.addEventListener('click', () => {
+  closeMenu();
+  confirmReset();
+});
 
 // ---------------------------------------------------------------
 // OPTIONAL: record clip via MediaRecorder (feature-detected)
 // ---------------------------------------------------------------
 let recordArmed = false;
 let recorder = null;
+const recordSupported = ('MediaRecorder' in window) && !!canvas.captureStream;
 
-function maybeAddRecordButton() {
-  if (!('MediaRecorder' in window) || !canvas.captureStream) return;
-  const btn = document.createElement('button');
-  btn.textContent = '🎥 record clip';
-  btn.type = 'button';
-  btn.className = 'btn-story';
-  btn.style.marginTop = '8px';
-  btn.style.fontSize = '11px';
-  btn.style.padding = '8px 12px';
-  btn.addEventListener('click', () => {
+if (!recordSupported) {
+  menuRecordClip.hidden = true;
+} else {
+  menuRecordClip.addEventListener('click', () => {
     recordArmed = !recordArmed;
-    btn.style.opacity = recordArmed ? '1' : '0.55';
-    btn.textContent = recordArmed ? '🎥 armed — spin now' : '🎥 record clip';
+    menuRecordClip.querySelector('.menu-item-icon').textContent = recordArmed ? '⏺️' : '🎥';
+    menuRecordClip.lastChild.textContent = recordArmed ? 'armed — spin now' : 'record clip';
+    if (recordArmed) closeMenu();
   });
-  btn.style.opacity = '0.55';
-  $('controls').appendChild(btn);
 }
 
 function maybeStartRecording() {
@@ -720,6 +835,98 @@ function maybeStartRecording() {
 }
 
 // ---------------------------------------------------------------
+// EDIT ACTIVITIES — in-app editable name / place / note per activity
+// ---------------------------------------------------------------
+function buildEditRow(index) {
+  const a = getActivity(index);
+  const row = document.createElement('div');
+  row.className = 'edit-row';
+
+  const idx = document.createElement('div');
+  idx.className = 'edit-row-index';
+  idx.textContent = String(index + 1).padStart(2, '0');
+
+  const icon = document.createElement('div');
+  icon.className = 'edit-row-icon';
+  icon.textContent = a.icon;
+
+  const fields = document.createElement('div');
+  fields.className = 'edit-row-fields';
+
+  const tag = document.createElement('div');
+  tag.className = 'edit-row-tag';
+  tag.textContent = `${a.tag} · ${a.type}`;
+  fields.appendChild(tag);
+
+  const nameLabel = document.createElement('div');
+  nameLabel.className = 'edit-row-label';
+  nameLabel.textContent = 'activity';
+  fields.appendChild(nameLabel);
+
+  const nameInput = document.createElement('input');
+  nameInput.className = 'edit-input';
+  nameInput.type = 'text';
+  nameInput.value = a.name;
+  nameInput.addEventListener('input', () => {
+    setOverride(index, 'name', nameInput.value.trim());
+    render();
+  });
+  fields.appendChild(nameInput);
+
+  const placeLabel = document.createElement('div');
+  placeLabel.className = 'edit-row-label';
+  placeLabel.textContent = 'place';
+  fields.appendChild(placeLabel);
+
+  const placeInput = document.createElement('input');
+  placeInput.className = 'edit-input edit-input-place';
+  placeInput.type = 'text';
+  placeInput.value = a.place;
+  placeInput.addEventListener('input', () => {
+    setOverride(index, 'place', placeInput.value.trim());
+    render();
+  });
+  fields.appendChild(placeInput);
+
+  const noteLabel = document.createElement('div');
+  noteLabel.className = 'edit-row-label';
+  noteLabel.textContent = 'note';
+  fields.appendChild(noteLabel);
+
+  const noteInput = document.createElement('textarea');
+  noteInput.className = 'edit-input edit-textarea';
+  noteInput.value = a.note;
+  noteInput.rows = 2;
+  noteInput.addEventListener('input', () => {
+    setOverride(index, 'note', noteInput.value.trim());
+    render();
+  });
+  fields.appendChild(noteInput);
+
+  row.appendChild(idx);
+  row.appendChild(icon);
+  row.appendChild(fields);
+  return row;
+}
+
+function populateEditList() {
+  editList.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < 30; i++) frag.appendChild(buildEditRow(i));
+  editList.appendChild(frag);
+}
+
+menuEditActivities.addEventListener('click', () => {
+  closeMenu();
+  populateEditList();
+  editOverlay.hidden = false;
+});
+
+editCloseBtn.addEventListener('click', () => {
+  editOverlay.hidden = true;
+});
+
+// ---------------------------------------------------------------
 // PWA — service worker registration
 // ---------------------------------------------------------------
 function registerSW() {
@@ -742,10 +949,10 @@ spinBtn.addEventListener('click', () => {
 
 function init() {
   loadState();
+  loadOverrides();
   resizeCanvas();
   render();
   registerSW();
-  maybeAddRecordButton();
 }
 
 init();

@@ -50,12 +50,33 @@
       <div class="parentline">by the mind game</div>
       <div class="handle">@jayandred</div>
     </div>
-    <div class="daycounter">
-      <span class="day-label">DAY</span>
-      <span class="day-num" id="dayNum">01</span>
-      <span class="day-total">/ 30</span>
+    <div class="header-right">
+      <div class="daycounter">
+        <span class="day-label">DAY</span>
+        <span class="day-num" id="dayNum">01</span>
+        <span class="day-total">/ 30</span>
+      </div>
+      <button class="menu-btn" id="menuBtn" type="button" aria-label="menu" aria-haspopup="true" aria-expanded="false">⋯</button>
     </div>
   </header>
+
+  <!-- overflow menu: save story / record clip / edit activities / reset -->
+  <div class="menu-panel" id="menuPanel" hidden>
+    <button class="menu-item" id="menuSaveStory" type="button"><span class="menu-item-icon">📤</span>save story</button>
+    <button class="menu-item" id="menuRecordClip" type="button"><span class="menu-item-icon">🎥</span>record clip</button>
+    <button class="menu-item" id="menuEditActivities" type="button"><span class="menu-item-icon">✎</span>edit activities</button>
+    <button class="menu-item menu-item-danger" id="menuReset" type="button"><span class="menu-item-icon">↺</span>reset</button>
+  </div>
+  <div class="menu-backdrop" id="menuBackdrop" hidden></div>
+
+  <!-- edit activities overlay -->
+  <div class="edit-overlay" id="editOverlay" hidden>
+    <div class="edit-header">
+      <span class="edit-title">edit activities</span>
+      <button class="edit-close" id="editCloseBtn" type="button" aria-label="close">✕</button>
+    </div>
+    <div class="edit-list" id="editList"></div>
+  </div>
 
   <!-- 3. wheel -->
   <main class="wheel-stage">
@@ -73,7 +94,7 @@
   <section class="controls" id="controls">
 
     <button class="spin-btn" id="spinBtn" type="button">
-      <span class="spin-btn-label">spin</span>
+      <span class="spin-btn-label" id="spinBtnLabel">spin</span>
     </button>
 
     <div class="mission-bar" id="missionBar" hidden>
@@ -86,7 +107,6 @@
       </div>
       <div class="mission-actions">
         <button class="btn-crossoff" id="crossOffBtn" type="button">cross it off</button>
-        <button class="btn-story" id="saveStoryMissionBtn" type="button">save story</button>
       </div>
     </div>
 
@@ -95,6 +115,7 @@
   <!-- result card (shown after landing, before commit) -->
   <div class="result-overlay" id="resultOverlay" hidden>
     <div class="result-card" id="resultCard">
+      <button class="result-close" id="resultCloseBtn" type="button" aria-label="close">✕</button>
       <div class="result-kicker">landed on</div>
       <div class="result-icon" id="resultIcon">🎁</div>
       <div class="result-name" id="resultName">mystery</div>
@@ -102,7 +123,6 @@
       <div class="result-note" id="resultNote"></div>
       <div class="result-actions">
         <button class="btn-commit" id="commitBtn" type="button">commit</button>
-        <button class="btn-story-ghost" id="saveStoryResultBtn" type="button">save story</button>
       </div>
       <div class="result-sub">no re-spin. this is the workout.</div>
     </div>
@@ -112,7 +132,6 @@
   <footer class="meta">
     <div class="meta-row">
       <span class="meta-count"><span id="crossedCount">0</span>/30 crossed off</span>
-      <button class="reset-btn" id="resetBtn" type="button">reset</button>
     </div>
     <div class="progress-track">
       <div class="progress-fill" id="progressFill"></div>
