@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
+<title>noexcuses.</title>
+<meta name="description" content="a 30-day spin-the-wheel fitness challenge. no excuses.">
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#14130F">
+<meta name="background-color" content="#14130F">
+
+<!-- iOS home screen -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="noexcuses">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+
+<!-- Android / Chrome home screen -->
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@900&family=Courier+Prime:wght@400;700&family=Space+Grotesk:wght@300;400;500&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="app" class="app">
+
+  <!-- grain + vignette overlays -->
+  <div class="grain" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <!-- 1. film-strip divider -->
+  <div class="filmstrip" aria-hidden="true">
+    <div class="sprockets"></div>
+    <div class="hairline"></div>
+  </div>
+
+  <!-- 2. header -->
+  <header class="header">
+    <div class="wordmark-block">
+      <div class="wordmark">noexcuses<span class="dot">.</span></div>
+      <div class="parentline">by the mind game</div>
+      <div class="handle">@jayandred</div>
+    </div>
+    <div class="daycounter">
+      <span class="day-label">DAY</span>
+      <span class="day-num" id="dayNum">01</span>
+      <span class="day-total">/ 30</span>
+    </div>
+  </header>
+
+  <!-- 3. wheel -->
+  <main class="wheel-stage">
+    <div class="wheel-wrap" id="wheelWrap">
+      <div class="pointer" id="pointer" aria-hidden="true"></div>
+      <canvas id="wheelCanvas" aria-label="challenge wheel"></canvas>
+      <div class="wheel-hub" aria-hidden="true">
+        <span>no</span><span>excuses.</span>
+      </div>
+      <div class="shockwave" id="shockwave" aria-hidden="true"></div>
+    </div>
+  </main>
+
+  <!-- 4. controls -->
+  <section class="controls" id="controls">
+
+    <button class="spin-btn" id="spinBtn" type="button">
+      <span class="spin-btn-label">spin</span>
+    </button>
+
+    <div class="mission-bar" id="missionBar" hidden>
+      <div class="mission-info">
+        <span class="mission-icon" id="missionIcon">🎁</span>
+        <div class="mission-text">
+          <span class="mission-name" id="missionName">mystery</span>
+          <span class="mission-place" id="missionPlace"></span>
+        </div>
+      </div>
+      <div class="mission-actions">
+        <button class="btn-crossoff" id="crossOffBtn" type="button">cross it off</button>
+        <button class="btn-story" id="saveStoryMissionBtn" type="button">save story</button>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- result card (shown after landing, before commit) -->
+  <div class="result-overlay" id="resultOverlay" hidden>
+    <div class="result-card" id="resultCard">
+      <div class="result-kicker">landed on</div>
+      <div class="result-icon" id="resultIcon">🎁</div>
+      <div class="result-name" id="resultName">mystery</div>
+      <div class="result-place" id="resultPlace"></div>
+      <div class="result-note" id="resultNote"></div>
+      <div class="result-actions">
+        <button class="btn-commit" id="commitBtn" type="button">commit</button>
+        <button class="btn-story-ghost" id="saveStoryResultBtn" type="button">save story</button>
+      </div>
+      <div class="result-sub">no re-spin. this is the workout.</div>
+    </div>
+  </div>
+
+  <!-- 5. meta row -->
+  <footer class="meta">
+    <div class="meta-row">
+      <span class="meta-count"><span id="crossedCount">0</span>/30 crossed off</span>
+      <button class="reset-btn" id="resetBtn" type="button">reset</button>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+  </footer>
+
+  <!-- finale -->
+  <div class="finale-overlay" id="finaleOverlay" hidden>
+    <div class="finale-card">
+      <div class="finale-kicker">30 / 30</div>
+      <div class="finale-title">no more excuses<span class="dot">.</span></div>
+      <div class="finale-sub">you did the whole thing.</div>
+      <button class="btn-story" id="saveStoryFinaleBtn" type="button">save story</button>
+      <button class="reset-btn" id="finaleResetBtn" type="button">reset &amp; go again</button>
+    </div>
+  </div>
+
+</div>
+
+<canvas id="exportCanvas" width="1080" height="1920" style="display:none"></canvas>
+
+<script src="app.js"></script>
+</body>
+</html>
