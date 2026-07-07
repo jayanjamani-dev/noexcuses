@@ -156,14 +156,19 @@ const missionIcon = $('missionIcon');
 const missionName = $('missionName');
 const missionPlace = $('missionPlace');
 const crossOffBtn = $('crossOffBtn');
-const swapBtn = $('swapBtn');
 const resultOverlay = $('resultOverlay');
+const resultCard = $('resultCard');
 const resultCloseBtn = $('resultCloseBtn');
+const mysteryBox = $('mysteryBox');
+const resultReveal = $('resultReveal');
 const resultIcon = $('resultIcon');
 const resultName = $('resultName');
 const resultPlace = $('resultPlace');
 const resultNote = $('resultNote');
+const resultMateWrap = $('resultMateWrap');
+const resultMateInput = $('resultMateInput');
 const commitBtn = $('commitBtn');
+const photoInput = $('photoInput');
 const dayNum = $('dayNum');
 const crossedCount = $('crossedCount');
 const progressFill = $('progressFill');
@@ -273,11 +278,17 @@ function drawWheel() {
     ctx.restore();
   }
 
-  // outer rim
+  // outer rim — vermilion base with a thin gold accent ring just inside it
   ctx.beginPath();
   ctx.arc(0, 0, r * 0.985, 0, Math.PI * 2);
   ctx.lineWidth = Math.max(2, r * 0.02);
   ctx.strokeStyle = COLORS.vermilion;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.985 - Math.max(2, r * 0.02) * 0.9, 0, Math.PI * 2);
+  ctx.lineWidth = Math.max(1, r * 0.008);
+  ctx.strokeStyle = COLORS.gold;
   ctx.stroke();
 
   ctx.restore();
@@ -518,6 +529,7 @@ function finishFlourish(winner) {
     flashIndex = -1;
     drawWheel();
     spinning = false;
+    spinBtn.disabled = false;
     if (spinBtnLabel) spinBtnLabel.textContent = 'spin';
     showResult(winner);
   }, 420);
@@ -528,19 +540,74 @@ function finishFlourish(winner) {
 // ---------------------------------------------------------------
 let currentResultIndex = -1;
 
+const CONFETTI_EMOJI = ['🎉', '✨', '🔥', '💥', '⭐'];
+
+function spawnConfetti(count = 10) {
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'confetti-particle';
+    p.textContent = CONFETTI_EMOJI[Math.floor(Math.random() * CONFETTI_EMOJI.length)];
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 60 + Math.random() * 90;
+    p.style.setProperty('--dx', `${Math.cos(angle) * dist}px`);
+    p.style.setProperty('--dy', `${Math.sin(angle) * dist}px`);
+    p.style.setProperty('--rot', `${(Math.random() - 0.5) * 720}deg`);
+    resultCard.appendChild(p);
+    p.addEventListener('animationend', () => p.remove());
+  }
+}
+
 function showResult(index) {
   currentResultIndex = index;
   const a = getActivity(index);
-  const revealed = a.cat !== 'mystery';
+  const isMystery = a.cat === 'mystery';
+  const needsMate = a.cat === 'mate' || a.cat === 'stranger';
+
   resultIcon.textContent = a.icon;
-  resultName.textContent = revealed ? a.name : 'mystery';
-  resultPlace.textContent = revealed ? a.place : '';
-  resultNote.textContent = revealed ? a.note : a.note; // notes never reveal identity even for mystery
+  resultName.textContent = isMystery ? 'mystery' : a.name;
+  resultPlace.textContent = isMystery ? '' : a.place;
+  resultNote.textContent = a.note; // notes never reveal identity even for mystery
+
+  resultMateWrap.hidden = !needsMate;
+  resultMateInput.value = '';
+  resultMateInput.classList.remove('input-error');
+
+  if (isMystery) {
+    mysteryBox.hidden = false;
+    mysteryBox.classList.remove('opening');
+    resultReveal.hidden = true;
+  } else {
+    mysteryBox.hidden = true;
+    resultReveal.hidden = false;
+  }
+
   resultOverlay.hidden = false;
 }
 
+mysteryBox.addEventListener('click', () => {
+  if (mysteryBox.classList.contains('opening')) return;
+  mysteryBox.classList.add('opening');
+  spawnConfetti();
+  playDing();
+  setTimeout(() => {
+    mysteryBox.hidden = true;
+    resultReveal.hidden = false;
+  }, 420);
+});
+
 commitBtn.addEventListener('click', () => {
   if (currentResultIndex === -1) return;
+  const a = getActivity(currentResultIndex);
+  const needsMate = a.cat === 'mate' || a.cat === 'stranger';
+  if (needsMate) {
+    const val = resultMateInput.value.trim();
+    if (!val) {
+      resultMateInput.focus();
+      resultMateInput.classList.add('input-error');
+      return;
+    }
+    setOverride(currentResultIndex, 'name', val);
+  }
   state.committed.push({
     index: currentResultIndex,
     done: false,
@@ -564,16 +631,6 @@ crossOffBtn.addEventListener('click', () => {
   if (!pending) return;
   pending.done = true;
   pending.doneAt = Date.now();
-  saveState();
-  render();
-});
-
-swapBtn.addEventListener('click', () => {
-  const pending = pendingEntry();
-  if (!pending) return;
-  if (!window.confirm("swap this mission for a new spin? it won't count as done — you can land on it again another day.")) return;
-  const idx = state.committed.indexOf(pending);
-  if (idx !== -1) state.committed.splice(idx, 1);
   saveState();
   render();
 });
@@ -950,6 +1007,53 @@ function formatHistoryDate(ts) {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+let pendingPhotoEntry = null;
+
+function triggerPhotoAdd(entry) {
+  pendingPhotoEntry = entry;
+  photoInput.value = '';
+  photoInput.click();
+}
+
+function compressImageFile(file, maxDim = 480, quality = 0.62) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > height && width > maxDim) {
+        height = Math.round(height * (maxDim / width));
+        width = maxDim;
+      } else if (height > maxDim) {
+        width = Math.round(width * (maxDim / height));
+        height = maxDim;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+photoInput.addEventListener('change', async () => {
+  const file = photoInput.files && photoInput.files[0];
+  if (!file || !pendingPhotoEntry) return;
+  try {
+    const dataUrl = await compressImageFile(file);
+    pendingPhotoEntry.photo = dataUrl;
+    saveState();
+    populateHistoryList();
+  } catch (e) {
+    console.warn('noexcuses: failed to attach photo', e);
+  }
+  pendingPhotoEntry = null;
+});
+
 function buildHistoryRow(entry, dayIndex) {
   const a = getActivity(entry.index);
   const revealed = a.cat !== 'mystery';
@@ -979,10 +1083,27 @@ function buildHistoryRow(entry, dayIndex) {
   date.className = 'history-row-date';
   date.textContent = formatHistoryDate(entry.doneAt);
 
+  const right = document.createElement('div');
+  right.className = 'history-row-right';
+  right.appendChild(date);
+
+  const photoEl = document.createElement('div');
+  photoEl.className = 'history-row-photo' + (entry.photo ? ' has-photo' : '');
+  if (entry.photo) {
+    const img = document.createElement('img');
+    img.src = entry.photo;
+    img.alt = '';
+    photoEl.appendChild(img);
+  } else {
+    photoEl.textContent = '📷';
+  }
+  photoEl.addEventListener('click', () => triggerPhotoAdd(entry));
+  right.appendChild(photoEl);
+
   row.appendChild(day);
   row.appendChild(icon);
   row.appendChild(main);
-  row.appendChild(date);
+  row.appendChild(right);
   return row;
 }
 

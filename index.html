@@ -116,7 +116,6 @@
         </div>
       </div>
       <div class="mission-actions">
-        <button class="btn-swap" id="swapBtn" type="button">can't do it — swap</button>
         <button class="btn-crossoff" id="crossOffBtn" type="button">cross it off</button>
       </div>
     </div>
@@ -128,14 +127,28 @@
     <div class="result-card" id="resultCard">
       <button class="result-close" id="resultCloseBtn" type="button" aria-label="close">✕</button>
       <div class="result-kicker">landed on</div>
-      <div class="result-icon" id="resultIcon">🎁</div>
-      <div class="result-name" id="resultName">mystery</div>
-      <div class="result-place" id="resultPlace"></div>
-      <div class="result-note" id="resultNote"></div>
-      <div class="result-actions">
-        <button class="btn-commit" id="commitBtn" type="button">commit</button>
+
+      <div class="mystery-box" id="mysteryBox" hidden>
+        <div class="mystery-box-icon">🎁</div>
+        <div class="mystery-box-hint">tap to open</div>
       </div>
-      <div class="result-sub">no re-spin. this is the workout.</div>
+
+      <div class="result-reveal" id="resultReveal">
+        <div class="result-icon" id="resultIcon">🎁</div>
+        <div class="result-name" id="resultName">mystery</div>
+        <div class="result-place" id="resultPlace"></div>
+        <div class="result-note" id="resultNote"></div>
+
+        <div class="result-mate" id="resultMateWrap" hidden>
+          <label class="result-mate-label" for="resultMateInput">what's the activity?</label>
+          <input class="result-mate-input" id="resultMateInput" type="text" placeholder="ask them, then type it in">
+        </div>
+
+        <div class="result-actions">
+          <button class="btn-commit" id="commitBtn" type="button">commit</button>
+        </div>
+        <div class="result-sub">no re-spin. this is the workout.</div>
+      </div>
     </div>
   </div>
 
@@ -163,6 +176,7 @@
 </div>
 
 <canvas id="exportCanvas" width="1080" height="1920" style="display:none"></canvas>
+<input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none">
 
 <script src="app.js"></script>
 </body>
