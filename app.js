@@ -140,6 +140,12 @@ function setOverride(index, field, value) {
   saveOverrides();
 }
 
+// activities where the real activity isn't known until you ask someone —
+// these lock in on landing but block cross-off until a name is filled in.
+function needsFillIn(activity) {
+  return activity.cat === 'mate' || activity.cat === 'stranger' || activity.tag === 'WILD';
+}
+
 // ---------------------------------------------------------------
 // DOM
 // ---------------------------------------------------------------
@@ -155,6 +161,9 @@ const missionBar = $('missionBar');
 const missionIcon = $('missionIcon');
 const missionName = $('missionName');
 const missionPlace = $('missionPlace');
+const missionFillWrap = $('missionFillWrap');
+const missionFillInput = $('missionFillInput');
+const missionFillSaveBtn = $('missionFillSaveBtn');
 const crossOffBtn = $('crossOffBtn');
 const resultOverlay = $('resultOverlay');
 const resultCard = $('resultCard');
@@ -559,9 +568,10 @@ function spawnConfetti(count = 10) {
 
 function showResult(index) {
   currentResultIndex = index;
+  const base = ACTIVITIES[index];
   const a = getActivity(index);
-  const isMystery = a.cat === 'mystery';
-  const needsMate = a.cat === 'mate' || a.cat === 'stranger';
+  const isMystery = base.cat === 'mystery';
+  const needsMate = needsFillIn(base);
 
   resultIcon.textContent = a.icon;
   resultName.textContent = isMystery ? 'mystery' : a.name;
@@ -595,44 +605,80 @@ mysteryBox.addEventListener('click', () => {
   }, 420);
 });
 
-commitBtn.addEventListener('click', () => {
-  if (currentResultIndex === -1) return;
-  const a = getActivity(currentResultIndex);
-  const needsMate = a.cat === 'mate' || a.cat === 'stranger';
-  if (needsMate) {
-    const val = resultMateInput.value.trim();
-    if (!val) {
-      resultMateInput.focus();
-      resultMateInput.classList.add('input-error');
-      return;
-    }
-    setOverride(currentResultIndex, 'name', val);
-  }
+// pushes a landed wedge into state.committed as pending (done: false).
+// no-ops if this index is already the pending mission (avoids duplicates
+// if lock-in gets triggered twice for the same landing).
+function lockInPending(index) {
+  if (state.committed.some((c) => c.index === index && !c.done)) return;
   state.committed.push({
-    index: currentResultIndex,
+    index,
     done: false,
     committedAt: Date.now(),
     doneAt: null,
   });
-  state.lastTag = ACTIVITIES[currentResultIndex].tag;
+  state.lastTag = ACTIVITIES[index].tag;
   saveState();
+}
+
+commitBtn.addEventListener('click', () => {
+  if (currentResultIndex === -1) return;
+  const base = ACTIVITIES[currentResultIndex];
+  if (needsFillIn(base)) {
+    const val = resultMateInput.value.trim();
+    if (val) setOverride(currentResultIndex, 'name', val);
+    // blank is fine — it locks in now and can be filled in later from the mission bar.
+  }
+  lockInPending(currentResultIndex);
   resultOverlay.hidden = true;
+  currentResultIndex = -1;
   render();
 });
 
 resultCloseBtn.addEventListener('click', () => {
-  // closing without committing keeps the landed wedge available to spin again
+  if (currentResultIndex !== -1) {
+    const base = ACTIVITIES[currentResultIndex];
+    if (needsFillIn(base)) {
+      // fill-in-required wedges (mate's pick, stranger, try a new activity)
+      // lock in even if closed without an answer yet — you might need to
+      // text a friend and get back to it later. it stays as the pending
+      // mission (blocking a re-spin) until you fill it in and cross it off.
+      const val = resultMateInput.value.trim();
+      if (val) setOverride(currentResultIndex, 'name', val);
+      lockInPending(currentResultIndex);
+    }
+  }
+  // everything else: closing without committing keeps the landed wedge
+  // available to spin again.
   resultOverlay.hidden = true;
   currentResultIndex = -1;
+  render();
 });
 
 crossOffBtn.addEventListener('click', () => {
   const pending = pendingEntry();
   if (!pending) return;
+  if (needsFillIn(ACTIVITIES[pending.index]) && !(overrides[pending.index] && overrides[pending.index].name)) {
+    missionFillInput.focus();
+    return;
+  }
   pending.done = true;
   pending.doneAt = Date.now();
   saveState();
   render();
+});
+
+missionFillSaveBtn.addEventListener('click', () => {
+  const pending = pendingEntry();
+  if (!pending) return;
+  const val = missionFillInput.value.trim();
+  if (!val) { missionFillInput.focus(); return; }
+  setOverride(pending.index, 'name', val);
+  missionFillInput.value = '';
+  render();
+});
+
+missionFillInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') missionFillSaveBtn.click();
 });
 
 finaleResetBtn.addEventListener('click', () => confirmReset());
@@ -671,11 +717,17 @@ function render() {
   if (pending) {
     spinBtn.hidden = true;
     missionBar.hidden = false;
+    const base = ACTIVITIES[pending.index];
     const a = getActivity(pending.index);
-    const revealed = a.cat !== 'mystery';
+    const revealed = base.cat !== 'mystery';
     missionIcon.textContent = a.icon;
     missionName.textContent = revealed ? a.name : 'mystery';
     missionPlace.textContent = revealed ? a.place : '';
+
+    const hasOverrideName = !!(overrides[pending.index] && overrides[pending.index].name);
+    const needsFill = needsFillIn(base) && !hasOverrideName;
+    missionFillWrap.hidden = !needsFill;
+    crossOffBtn.disabled = needsFill;
   } else {
     spinBtn.hidden = false;
     spinBtn.disabled = false;
@@ -801,20 +853,42 @@ function roundRect(c, x, y, w, h, r) {
   c.closePath();
 }
 
+// tries the native share sheet first (one tap -> Instagram/anywhere else
+// on supported mobile browsers), falls back to a plain download on
+// desktop or when the browser doesn't support sharing files.
+async function shareOrDownloadBlob(blob, filename, text) {
+  if (navigator.share && navigator.canShare) {
+    try {
+      const file = new File([blob], filename, { type: blob.type });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'noexcuses.', text });
+        return;
+      }
+    } catch (e) {
+      if (e && e.name === 'AbortError') return; // user cancelled the share sheet
+      // fall through to download on any other share failure
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
 async function saveStory(index) {
   if (index == null || index < 0) return;
   try {
     await drawExport(index);
+    const a = getActivity(index);
+    const isMystery = ACTIVITIES[index].cat === 'mystery';
+    const caption = `day ${String(currentDay()).padStart(2, '0')} of 30 — ${isMystery ? 'mystery' : a.name} #noexcuses #30daychallenge`;
     exportCanvas.toBlob((blob) => {
       if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `noexcuses-day-${String(currentDay()).padStart(2, '0')}.png`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      shareOrDownloadBlob(blob, `noexcuses-day-${String(currentDay()).padStart(2, '0')}.png`, caption);
     }, 'image/png');
   } catch (e) {
     console.warn('noexcuses: story export failed', e);
@@ -1007,15 +1081,78 @@ function formatHistoryDate(ts) {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-let pendingPhotoEntry = null;
-
-function triggerPhotoAdd(entry) {
-  pendingPhotoEntry = entry;
-  photoInput.value = '';
-  photoInput.click();
+// the history log is a private record, so unlike the live mission bar /
+// result card it fully reveals mystery + fill-in activities: "mystery —
+// marathon", "mate's pick — kickboxing at the local gym", etc.
+function historyLabel(index) {
+  const base = ACTIVITIES[index];
+  const o = overrides[index];
+  const overrideName = o && o.name;
+  if (base.cat === 'mystery') {
+    return { name: `mystery — ${base.name}`, place: base.place };
+  }
+  if (needsFillIn(base)) {
+    const prefix = base.cat === 'mate' ? "mate's pick" : base.cat === 'stranger' ? 'stranger' : 'try a new activity';
+    return { name: overrideName ? `${prefix} — ${overrideName}` : prefix, place: base.place };
+  }
+  const a = getActivity(index);
+  return { name: a.name, place: a.place };
 }
 
-function compressImageFile(file, maxDim = 480, quality = 0.62) {
+// ---------------------------------------------------------------
+// MEDIA — photos + videos per completed activity, stored in IndexedDB
+// (localStorage's ~5-10MB quota can't hold multiple photos let alone
+// video, so blobs live in IndexedDB and state.committed just stays small)
+// ---------------------------------------------------------------
+const MEDIA_DB_NAME = 'noexcuses-media';
+const MEDIA_STORE = 'media';
+let mediaDBPromise = null;
+
+function getMediaDB() {
+  if (!('indexedDB' in window)) return Promise.reject(new Error('indexedDB unavailable'));
+  if (!mediaDBPromise) {
+    mediaDBPromise = new Promise((resolve, reject) => {
+      const req = indexedDB.open(MEDIA_DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(MEDIA_STORE)) {
+          const store = db.createObjectStore(MEDIA_STORE, { keyPath: 'id' });
+          store.createIndex('entryKey', 'entryKey', { unique: false });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    }).catch((e) => { mediaDBPromise = null; throw e; });
+  }
+  return mediaDBPromise;
+}
+
+async function addMedia(entryKey, type, blob) {
+  const db = await getMediaDB();
+  const id = `${entryKey}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(MEDIA_STORE, 'readwrite');
+    tx.objectStore(MEDIA_STORE).put({ id, entryKey, type, blob, createdAt: Date.now() });
+    tx.oncomplete = () => resolve(id);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function getMediaForEntry(entryKey) {
+  try {
+    const db = await getMediaDB();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(MEDIA_STORE, 'readonly');
+      const req = tx.objectStore(MEDIA_STORE).index('entryKey').getAll(IDBKeyRange.only(entryKey));
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) {
+    return [];
+  }
+}
+
+function compressImageToBlob(file, maxDim = 1080, quality = 0.75) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -1033,32 +1170,94 @@ function compressImageFile(file, maxDim = 480, quality = 0.62) {
       canvas.height = height;
       canvas.getContext('2d').drawImage(img, 0, 0, width, height);
       URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL('image/jpeg', quality));
+      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('toBlob failed'))), 'image/jpeg', quality);
     };
     img.onerror = reject;
     img.src = url;
   });
 }
 
+const MAX_VIDEO_BYTES = 60 * 1024 * 1024; // 60MB — guard against accidentally picking a huge 4K clip
+let pendingPhotoEntry = null;
+
+function triggerPhotoAdd(entry) {
+  pendingPhotoEntry = entry;
+  photoInput.value = '';
+  photoInput.click();
+}
+
 photoInput.addEventListener('change', async () => {
-  const file = photoInput.files && photoInput.files[0];
-  if (!file || !pendingPhotoEntry) return;
-  try {
-    const dataUrl = await compressImageFile(file);
-    pendingPhotoEntry.photo = dataUrl;
-    saveState();
-    populateHistoryList();
-  } catch (e) {
-    console.warn('noexcuses: failed to attach photo', e);
-  }
+  const files = Array.from(photoInput.files || []);
+  const entry = pendingPhotoEntry;
   pendingPhotoEntry = null;
+  if (!files.length || !entry) return;
+  for (const file of files) {
+    try {
+      if (file.type.startsWith('video/')) {
+        if (file.size > MAX_VIDEO_BYTES) {
+          console.warn('noexcuses: video too large, skipping', file.name, file.size);
+          continue;
+        }
+        await addMedia(entry.committedAt, 'video', file);
+      } else if (file.type.startsWith('image/')) {
+        const blob = await compressImageToBlob(file);
+        await addMedia(entry.committedAt, 'photo', blob);
+      }
+    } catch (e) {
+      console.warn('noexcuses: failed to attach media', e);
+    }
+  }
+  populateHistoryList();
 });
+
+let galleryObjectUrls = [];
+function revokeGalleryUrls() {
+  galleryObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  galleryObjectUrls = [];
+}
+
+async function renderGallery(galleryEl, entry) {
+  const items = await getMediaForEntry(entry.committedAt);
+  galleryEl.innerHTML = '';
+  items.forEach((item) => {
+    const thumb = document.createElement('div');
+    thumb.className = 'gallery-thumb';
+    const url = URL.createObjectURL(item.blob);
+    galleryObjectUrls.push(url);
+    if (item.type === 'video') {
+      const vid = document.createElement('video');
+      vid.src = url;
+      vid.muted = true;
+      vid.playsInline = true;
+      thumb.appendChild(vid);
+      const playIcon = document.createElement('span');
+      playIcon.className = 'gallery-thumb-play';
+      playIcon.textContent = '▶';
+      thumb.appendChild(playIcon);
+    } else {
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = '';
+      thumb.appendChild(img);
+    }
+    galleryEl.appendChild(thumb);
+  });
+  const addBtn = document.createElement('div');
+  addBtn.className = 'gallery-thumb gallery-thumb-add';
+  addBtn.textContent = '+';
+  addBtn.addEventListener('click', () => triggerPhotoAdd(entry));
+  galleryEl.appendChild(addBtn);
+}
 
 function buildHistoryRow(entry, dayIndex) {
   const a = getActivity(entry.index);
-  const revealed = a.cat !== 'mystery';
+  const label = historyLabel(entry.index);
+
   const row = document.createElement('div');
   row.className = 'history-row';
+
+  const top = document.createElement('div');
+  top.className = 'history-row-top';
 
   const day = document.createElement('div');
   day.className = 'history-row-day';
@@ -1072,10 +1271,10 @@ function buildHistoryRow(entry, dayIndex) {
   main.className = 'history-row-main';
   const name = document.createElement('div');
   name.className = 'history-row-name';
-  name.textContent = revealed ? a.name : 'mystery';
+  name.textContent = label.name;
   const place = document.createElement('div');
   place.className = 'history-row-place';
-  place.textContent = revealed ? a.place : '';
+  place.textContent = label.place || '';
   main.appendChild(name);
   main.appendChild(place);
 
@@ -1083,31 +1282,24 @@ function buildHistoryRow(entry, dayIndex) {
   date.className = 'history-row-date';
   date.textContent = formatHistoryDate(entry.doneAt);
 
-  const right = document.createElement('div');
-  right.className = 'history-row-right';
-  right.appendChild(date);
+  top.appendChild(day);
+  top.appendChild(icon);
+  top.appendChild(main);
+  top.appendChild(date);
 
-  const photoEl = document.createElement('div');
-  photoEl.className = 'history-row-photo' + (entry.photo ? ' has-photo' : '');
-  if (entry.photo) {
-    const img = document.createElement('img');
-    img.src = entry.photo;
-    img.alt = '';
-    photoEl.appendChild(img);
-  } else {
-    photoEl.textContent = '📷';
-  }
-  photoEl.addEventListener('click', () => triggerPhotoAdd(entry));
-  right.appendChild(photoEl);
+  const gallery = document.createElement('div');
+  gallery.className = 'history-row-gallery';
 
-  row.appendChild(day);
-  row.appendChild(icon);
-  row.appendChild(main);
-  row.appendChild(right);
+  row.appendChild(top);
+  row.appendChild(gallery);
+
+  renderGallery(gallery, entry);
+
   return row;
 }
 
 function populateHistoryList() {
+  revokeGalleryUrls();
   historyList.innerHTML = '';
   const done = state.committed.filter(c => c.done);
   if (done.length === 0) {

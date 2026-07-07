@@ -115,6 +115,13 @@
           <span class="mission-place" id="missionPlace"></span>
         </div>
       </div>
+      <div class="mission-fill" id="missionFillWrap" hidden>
+        <label class="mission-fill-label" for="missionFillInput">what's the activity? (ask them, then fill in)</label>
+        <div class="mission-fill-row">
+          <input class="mission-fill-input" id="missionFillInput" type="text" placeholder="e.g. kickboxing at the local gym">
+          <button class="btn-save-fill" id="missionFillSaveBtn" type="button">save</button>
+        </div>
+      </div>
       <div class="mission-actions">
         <button class="btn-crossoff" id="crossOffBtn" type="button">cross it off</button>
       </div>
@@ -176,7 +183,7 @@
 </div>
 
 <canvas id="exportCanvas" width="1080" height="1920" style="display:none"></canvas>
-<input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none">
+<input type="file" id="photoInput" accept="image/*,video/*" multiple style="display:none">
 
 <script src="app.js"></script>
 </body>
