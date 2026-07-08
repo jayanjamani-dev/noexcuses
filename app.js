@@ -6,9 +6,13 @@
 'use strict';
 
 // ---------------------------------------------------------------
-// DATA — the 30 activities
+// DATA — challenge templates. each template is its own 30-wedge wheel;
+// the active template's activities are aliased onto the module-level
+// `ACTIVITIES` binding below so the rest of the app (wheel draw, spin,
+// mission bar, export, edit-activities) doesn't need to know templates
+// exist at all — it just reads/writes "the current wheel".
 // ---------------------------------------------------------------
-const ACTIVITIES = [
+const NO_EXCUSES_ACTIVITIES = [
   { label: '1000 STEPS',    icon: '⛰️', name: '1000 steps',                     tag: 'LEGS',     type: 'Hill',       cat: 'locked',   place: 'Kokoda Track, Dandenongs · x2', note: 'up and down till your legs quit. film the top.' },
   { label: '10KM RUN',      icon: '🏃', name: '10km run',                       tag: 'CARDIO',   type: 'Run',        cat: 'locked',   place: 'River or city loop',            note: 'just run it. no story needed.' },
   { label: '1000 PUSHUPS',  icon: '💪', name: '1000 push-ups',                  tag: 'UPPER',    type: 'Reps',       cat: 'locked',   place: 'Pick a landmark',               note: 'pick a spot, drop and knock them out in sets.' },
@@ -41,6 +45,120 @@ const ACTIVITIES = [
   { label: 'STRANGER',      icon: '👋', name: 'workout with a stranger',        tag: 'PICK',     type: 'Social',     cat: 'stranger', place: 'TBC',                           note: 'find someone new and train together. that\'s the brief.' },
 ];
 
+const RESET_ACTIVITIES = [
+  { label: 'MAKE BED',      icon: '🛏️', name: 'make your bed',                  tag: 'HOME',    type: 'Habit',      cat: 'locked',   place: 'your room',    note: 'first win of the day, before anything else.' },
+  { label: 'WALK 10',       icon: '🚶', name: '10-minute walk',                 tag: 'MOVE',    type: 'Walk',       cat: 'locked',   place: 'anywhere',     note: 'no phone. just walk.' },
+  { label: 'HYDRATE',       icon: '💧', name: 'drink 2L of water',              tag: 'BODY',    type: 'Habit',      cat: 'locked',   place: 'anywhere',     note: 'track it if you have to. just hit it.' },
+  { label: 'NO PHONE AM',   icon: '📵', name: 'no phone for the first hour',    tag: 'MIND',    type: 'Focus',      cat: 'locked',   place: 'home',         note: 'wake up before your phone does.' },
+  { label: 'JOURNAL 5',     icon: '📓', name: '5-minute journal',               tag: 'MIND',    type: 'Reflect',    cat: 'locked',   place: 'anywhere',     note: 'whatever\'s on your mind. just write.' },
+  { label: 'COLD SHOWER',   icon: '🚿', name: 'cold shower',                    tag: 'BODY',    type: 'Reset',      cat: 'locked',   place: 'home',         note: 'thirty seconds cold at the end. no cheating.' },
+  { label: 'DECLUTTER',     icon: '🧹', name: 'declutter one drawer',           tag: 'HOME',    type: 'Tidy',       cat: 'locked',   place: 'home',         note: 'one drawer. all the way through.' },
+  { label: 'READ 10',       icon: '📖', name: 'read 10 pages',                  tag: 'MIND',    type: 'Read',       cat: 'locked',   place: 'anywhere',     note: 'actual pages. no scrolling counts.' },
+  { label: 'MEAL PREP',     icon: '🍱', name: 'prep one meal ahead',            tag: 'FOOD',    type: 'Prep',       cat: 'locked',   place: 'kitchen',      note: 'tomorrow-you says thanks.' },
+  { label: 'DIGITAL SUNSET',icon: '🌇', name: 'screens off by 9pm',             tag: 'MIND',    type: 'Wind-down',  cat: 'locked',   place: 'home',         note: 'lights down, screens off, book or nothing.' },
+  { label: 'GRATITUDE 3',   icon: '🙏', name: 'write down 3 things you\'re grateful for', tag: 'MIND', type: 'Reflect', cat: 'locked', place: 'anywhere',  note: 'small counts. specific beats general.' },
+  { label: 'STRETCH 10',    icon: '🤸', name: '10-minute stretch',              tag: 'BODY',    type: 'Mobility',   cat: 'locked',   place: 'home',         note: 'slow down, actually feel it.' },
+  { label: 'PLAN TOMORROW', icon: '🗓️', name: 'plan tomorrow tonight',          tag: 'MIND',    type: 'Plan',       cat: 'locked',   place: 'anywhere',     note: 'top 3 things. write them down before bed.' },
+  { label: 'NO SUGAR',      icon: '🍬', name: 'no added sugar today',           tag: 'FOOD',    type: 'Discipline', cat: 'locked',   place: 'anywhere',     note: 'read the labels. you\'ll be surprised.' },
+  { label: 'CALL FAMILY',   icon: '📞', name: 'call someone in your family',    tag: 'SOCIAL',  type: 'Connect',    cat: 'locked',   place: 'anywhere',     note: 'actual call, not a text.' },
+  { label: 'TIDY SPRINT',   icon: '🧽', name: '15-minute tidy sprint',          tag: 'HOME',    type: 'Tidy',       cat: 'locked',   place: 'home',         note: 'timer on. go until it beeps.' },
+  { label: 'SILENCE 5',     icon: '🧘', name: '5 minutes of silence',           tag: 'MIND',    type: 'Stillness',  cat: 'locked',   place: 'anywhere quiet', note: 'no music, no podcast. just sit.' },
+  { label: 'WALK NOT DRIVE',icon: '🚲', name: 'walk somewhere you\'d normally drive', tag: 'MOVE', type: 'Walk',    cat: 'locked',   place: 'anywhere',     note: 'pick a trip under 2km and walk it.' },
+  { label: 'BATCH COOK',    icon: '🍲', name: 'batch-cook lunch for the week',  tag: 'FOOD',    type: 'Prep',       cat: 'locked',   place: 'kitchen',      note: 'one cook, five lunches.' },
+  { label: 'INBOX ZERO',    icon: '📥', name: 'unsubscribe from 5 emails',      tag: 'MIND',    type: 'Declutter',  cat: 'locked',   place: 'anywhere',     note: 'less noise, less pull on your attention.' },
+  { label: 'EARLY NIGHT',   icon: '🌙', name: 'in bed by 10pm',                 tag: 'BODY',    type: 'Sleep',      cat: 'locked',   place: 'home',         note: 'no negotiating with yourself at 10:05.' },
+  { label: 'NO SNOOZE',     icon: '⏰', name: 'up on the first alarm',          tag: 'BODY',    type: 'Discipline', cat: 'locked',   place: 'home',         note: 'feet on the floor, first beep.' },
+  { label: 'MORNING LIGHT', icon: '☀️', name: 'sunlight within 30 min of waking', tag: 'BODY',  type: 'Habit',      cat: 'locked',   place: 'outside',      note: 'outside, no sunglasses. a few minutes is enough.' },
+  { label: 'SINGLE TASK',   icon: '🎯', name: 'single-task for one hour',       tag: 'MIND',    type: 'Focus',      cat: 'locked',   place: 'anywhere',     note: 'one thing at a time. no tab-switching.' },
+  { label: 'WINS LIST',     icon: '✅', name: 'write down 3 wins from today',   tag: 'MIND',    type: 'Reflect',    cat: 'locked',   place: 'anywhere',     note: 'however small. write them down.' },
+  { label: 'MYSTERY',       icon: '🎁', name: 'a habit you\'ve been avoiding',  tag: 'MIND',    type: 'Mystery',    cat: 'mystery',  place: 'you know which one', note: 'you already know what this is. don\'t say it out loud.' },
+  { label: 'MYSTERY',       icon: '🎁', name: 'no complaining for the whole day', tag: 'MIND',  type: 'Mystery',    cat: 'mystery',  place: 'everywhere',   note: 'catch yourself. reset. keep going.' },
+  { label: "MATE'S PICK",   icon: '🤝', name: "mate's pick",                    tag: 'PICK',    type: 'Wildcard',   cat: 'mate',     place: 'TBC',          note: 'hand your phone to a mate. their call, your habit.' },
+  { label: "MATE'S PICK",   icon: '🤝', name: "mate's pick",                    tag: 'PICK',    type: 'Wildcard',   cat: 'mate',     place: 'TBC',          note: 'hand your phone to a mate. their call, your habit.' },
+  { label: 'NEW HABIT',     icon: '✨', name: 'try a new habit',                tag: 'WILD',    type: 'First-timer',cat: 'locked',   place: 'TBC',          note: 'something you\'ve never tried keeping up. today\'s day one.' },
+];
+
+const CREATIVE_ACTIVITIES = [
+  { label: 'SKETCH ROOM',   icon: '✏️', name: 'sketch something in your room',  tag: 'DRAW',    type: 'Sketch',     cat: 'locked',   place: 'home',         note: 'five minutes, no erasing.' },
+  { label: '100 WORDS',     icon: '✍️', name: 'write a 100-word story',         tag: 'WRITE',   type: 'Flash fiction', cat: 'locked', place: 'anywhere',     note: 'exactly 100 words. make them count.' },
+  { label: '3 CHORDS',      icon: '🎸', name: 'learn 3 chords on an instrument',tag: 'MUSIC',   type: 'Learn',      cat: 'locked',   place: 'anywhere',     note: 'don\'t have one? borrow one or use an app.' },
+  { label: 'PHOTO THEME',   icon: '📸', name: 'take 10 photos on one theme',    tag: 'PHOTO',   type: 'Series',     cat: 'locked',   place: 'anywhere',     note: 'pick a theme first. shoot ten frames.' },
+  { label: 'FREEWRITE 10',  icon: '📝', name: 'freewrite for 10 minutes, no stopping', tag: 'WRITE', type: 'Freewrite', cat: 'locked', place: 'anywhere',  note: 'pen never leaves the page. no editing.' },
+  { label: 'DOODLE DAY',    icon: '🖍️', name: 'doodle your day so far',         tag: 'DRAW',    type: 'Doodle',     cat: 'locked',   place: 'anywhere',     note: 'shapes, faces, whatever comes out.' },
+  { label: 'VOICE MEMO',    icon: '🎙️', name: 'record a 1-min voice memo of an idea', tag: 'AUDIO', type: 'Idea',   cat: 'locked',   place: 'anywhere',     note: 'just talk it out. don\'t overthink it.' },
+  { label: 'DESK REDESIGN', icon: '🪴', name: 'redesign your desk setup',       tag: 'SPACE',   type: 'Design',     cat: 'locked',   place: 'home',         note: 'move three things. see how it feels.' },
+  { label: 'POEM TODAY',    icon: '📜', name: 'write a poem about today',       tag: 'WRITE',   type: 'Poetry',     cat: 'locked',   place: 'anywhere',     note: 'rhyme optional. honesty required.' },
+  { label: 'NEW RECIPE',    icon: '🍳', name: 'cook a new recipe and photograph it', tag: 'FOOD', type: 'Cook',     cat: 'locked',   place: 'kitchen',      note: 'plate it like it matters.' },
+  { label: 'PAINT SMALL',   icon: '🎨', name: 'paint or colour something small',tag: 'PAINT',   type: 'Paint',      cat: 'locked',   place: 'home',         note: 'postcard-sized is plenty.' },
+  { label: 'STORYBOARD',    icon: '🎬', name: 'storyboard an idea for a video', tag: 'WRITE',   type: 'Storyboard', cat: 'locked',   place: 'anywhere',     note: 'six boxes, six moments. sketch it out.' },
+  { label: 'FUTURE LETTER', icon: '💌', name: 'write a letter to your future self', tag: 'WRITE', type: 'Letter',   cat: 'locked',   place: 'anywhere',     note: 'seal it. open it in a year.' },
+  { label: 'REMIX SONG',    icon: '🎧', name: 'remix a favourite song idea in your head', tag: 'MUSIC', type: 'Remix', cat: 'locked', place: 'anywhere',   note: 'hum it, hum the new version, compare.' },
+  { label: 'COLLAGE',       icon: '✂️', name: 'make a collage from scraps or magazines', tag: 'PAINT', type: 'Collage', cat: 'locked', place: 'home',      note: 'cut first, think later.' },
+  { label: 'NEW WORD',      icon: '📖', name: 'learn a new word and use it 3 times', tag: 'WRITE', type: 'Vocabulary', cat: 'locked', place: 'anywhere',   note: 'bonus points if someone asks what it means.' },
+  { label: 'SKETCH SCENE',  icon: '🖌️', name: 'sketch a scene from where you are', tag: 'DRAW',  type: 'Sketch',     cat: 'locked',   place: 'anywhere',     note: 'a street, a room, a face. capture it.' },
+  { label: 'WRITE YOUR OWN',icon: '🎲', name: 'write your own mystery activity for next time', tag: 'WRITE', type: 'Meta', cat: 'locked', place: 'anywhere', note: 'put it back in the wheel. surprise future-you.' },
+  { label: 'VOICE ACT',     icon: '🎭', name: 'voice-act a scene from a film or book', tag: 'AUDIO', type: 'Perform', cat: 'locked', place: 'home',        note: 'full commitment, no half-effort accents.' },
+  { label: 'FAKE LOGO',     icon: '🖊️', name: 'design a logo for a fake brand', tag: 'DRAW',    type: 'Design',     cat: 'locked',   place: 'anywhere',     note: 'name it, then draw the mark.' },
+  { label: 'DRAW MOOD',     icon: '🌀', name: 'draw your mood as a shape or colour', tag: 'DRAW', type: 'Abstract',  cat: 'locked',   place: 'anywhere',     note: 'no rules. just get it out of your head.' },
+  { label: 'BUILD SOMETHING',icon: '🧱', name: 'build something small with what\'s around you', tag: 'MAKE', type: 'Build', cat: 'locked', place: 'home', note: 'lego, cardboard, cutlery — whatever\'s there.' },
+  { label: 'HAIKU',         icon: '🍃', name: 'write a haiku',                  tag: 'WRITE',   type: 'Poetry',     cat: 'locked',   place: 'anywhere',     note: '5-7-5. that\'s the whole brief.' },
+  { label: 'TEXTURE SERIES',icon: '🔍', name: 'take a photo series of textures',tag: 'PHOTO',   type: 'Series',     cat: 'locked',   place: 'anywhere',     note: 'bark, fabric, rust — get close.' },
+  { label: 'MAGIC TRICK',   icon: '🪄', name: 'learn a magic trick',            tag: 'MAKE',    type: 'Learn',      cat: 'locked',   place: 'anywhere',     note: 'good enough to actually show someone.' },
+  { label: 'MYSTERY',       icon: '🎁', name: 'draw your biggest fear',         tag: 'DRAW',    type: 'Mystery',    cat: 'mystery',  place: 'wherever you feel safest', note: 'you already know what this is. don\'t say it out loud.' },
+  { label: 'MYSTERY',       icon: '🎁', name: 'write the ending you\'re avoiding', tag: 'WRITE', type: 'Mystery',   cat: 'mystery',  place: 'anywhere',     note: 'fiction or not. finish it.' },
+  { label: "MATE'S PICK",   icon: '🤝', name: "mate's pick",                    tag: 'PICK',    type: 'Wildcard',   cat: 'mate',     place: 'TBC',          note: 'hand your phone to a mate. their prompt, your creation.' },
+  { label: "MATE'S PICK",   icon: '🤝', name: "mate's pick",                    tag: 'PICK',    type: 'Wildcard',   cat: 'mate',     place: 'TBC',          note: 'hand your phone to a mate. their prompt, your creation.' },
+  { label: 'NEW MEDIUM',    icon: '✨', name: 'try a creative medium you\'ve never used', tag: 'WILD', type: 'First-timer', cat: 'locked', place: 'TBC',     note: 'clay, charcoal, GarageBand — pick something new.' },
+];
+
+const DUO_ACTIVITIES = [
+  { label: 'COOK TOGETHER', icon: '👩‍🍳', name: 'cook a meal together',           tag: 'FOOD',    type: 'Cook',       cat: 'locked',   place: 'kitchen',      note: 'one recipe, two cooks, no arguing over the pan.' },
+  { label: 'WALK & TALK',   icon: '🚶‍♂️', name: 'walk and talk, phones away',     tag: 'TALK',    type: 'Walk',       cat: 'locked',   place: 'anywhere',     note: 'leave the phones at home. just talk.' },
+  { label: 'TRY A CLASS',   icon: '🧘‍♀️', name: 'try a workout class together',   tag: 'MOVE',    type: 'Class',      cat: 'locked',   place: 'a studio near you', note: 'something neither of you has done before.' },
+  { label: 'GAME NIGHT',    icon: '🎲', name: 'board game night',               tag: 'PLAY',    type: 'Game',       cat: 'locked',   place: 'home',         note: 'loser does the dishes.' },
+  { label: 'TOURIST DAY',   icon: '🗺️', name: 'be a tourist in your own city',  tag: 'EXPLORE', type: 'Day trip',   cat: 'locked',   place: 'your city',    note: 'go somewhere you\'ve never actually visited.' },
+  { label: 'COMFORT SWAP',  icon: '🍜', name: 'cook each other\'s comfort food', tag: 'FOOD',   type: 'Cook',       cat: 'locked',   place: 'kitchen',      note: 'their childhood dish, your kitchen.' },
+  { label: 'PLAYLIST SWAP', icon: '🎵', name: 'swap playlists and listen together', tag: 'MUSIC', type: 'Listen',    cat: 'locked',   place: 'anywhere',     note: 'no skipping, even the embarrassing ones.' },
+  { label: 'LEARN A DANCE', icon: '💃', name: 'learn a dance together',         tag: 'PLAY',    type: 'Dance',      cat: 'locked',   place: 'home',         note: 'pick a video, follow along, film the attempt.' },
+  { label: 'PUZZLE',        icon: '🧩', name: 'do a puzzle together',           tag: 'PLAY',    type: 'Puzzle',     cat: 'locked',   place: 'home',         note: 'start it, finish it, same sitting if you can.' },
+  { label: 'VOLUNTEER',     icon: '🤲', name: 'volunteer together for an hour', tag: 'GIVE',    type: 'Volunteer',  cat: 'locked',   place: 'anywhere',     note: 'find something local, show up together.' },
+  { label: 'SCAVENGER HUNT',icon: '📷', name: 'photo scavenger hunt',           tag: 'EXPLORE', type: 'Photo',      cat: 'locked',   place: 'anywhere',     note: 'make a list of ten things, split up, compare photos.' },
+  { label: 'NEW RESTAURANT',icon: '🍽️', name: 'try a restaurant neither of you has been to', tag: 'FOOD', type: 'Eat out', cat: 'locked', place: 'TBC',   note: 'order something neither of you would normally pick.' },
+  { label: 'BIKE RIDE',     icon: '🚴', name: 'go for a bike ride together',    tag: 'MOVE',    type: 'Ride',       cat: 'locked',   place: 'anywhere',     note: 'match pace, no racing ahead.' },
+  { label: 'DEEP TALK',     icon: '☕', name: 'coffee and a deep talk, no small talk allowed', tag: 'TALK', type: 'Talk', cat: 'locked', place: 'a cafe',    note: 'ask each other one real question.' },
+  { label: 'DOCUMENTARY',   icon: '🎥', name: 'watch a documentary and discuss it after', tag: 'TALK', type: 'Watch', cat: 'locked', place: 'home',        note: 'pick something neither of you knows much about.' },
+  { label: 'PICNIC',        icon: '🧺', name: 'picnic in a park',               tag: 'FOOD',    type: 'Picnic',     cat: 'locked',   place: 'a park',       note: 'pack it together, no takeout allowed.' },
+  { label: 'TEACH A SKILL', icon: '🛠️', name: 'teach each other a skill',       tag: 'LEARN',   type: 'Teach',      cat: 'locked',   place: 'anywhere',     note: 'something you\'re each actually good at.' },
+  { label: 'THRIFT CHALLENGE', icon: '🛍️', name: 'thrift shopping challenge',   tag: 'PLAY',    type: 'Shop',       cat: 'locked',   place: 'op shop / thrift store', note: 'small budget, find the other person one outfit.' },
+  { label: 'KARAOKE',       icon: '🎤', name: 'karaoke night',                  tag: 'PLAY',    type: 'Music',      cat: 'locked',   place: 'anywhere',     note: 'full commitment. no lip-syncing.' },
+  { label: 'ESCAPE ROOM',   icon: '🔐', name: 'escape room',                    tag: 'PLAY',    type: 'Puzzle',     cat: 'locked',   place: 'a local escape room', note: 'you\'ve got sixty minutes. work together.' },
+  { label: 'MINI GOLF',     icon: '⛳', name: 'mini golf or bowling',           tag: 'PLAY',    type: 'Sport',      cat: 'locked',   place: 'anywhere',     note: 'loser buys the snacks.' },
+  { label: 'PLAN AHEAD',    icon: '🗓️', name: 'plan next month together',       tag: 'TALK',    type: 'Plan',       cat: 'locked',   place: 'anywhere',     note: 'one thing to look forward to, on the calendar.' },
+  { label: 'GRATITUDE SWAP',icon: '💬', name: 'share 3 things you appreciate about each other', tag: 'TALK', type: 'Gratitude', cat: 'locked', place: 'anywhere', note: 'say it out loud, not just think it.' },
+  { label: 'STARGAZING',    icon: '🌌', name: 'go stargazing',                  tag: 'EXPLORE', type: 'Night',      cat: 'locked',   place: 'somewhere dark', note: 'phones down, look up for a while.' },
+  { label: 'NO RECIPE',     icon: '🍝', name: 'cook a meal with no recipe',     tag: 'FOOD',    type: 'Cook',       cat: 'locked',   place: 'kitchen',      note: 'use what\'s in the fridge. wing it together.' },
+  { label: 'MYSTERY',       icon: '🎁', name: 'plan a surprise for the other person', tag: 'TALK', type: 'Mystery', cat: 'mystery',  place: 'you decide',   note: 'you already know what this is. don\'t say it out loud.' },
+  { label: 'MYSTERY',       icon: '🎁', name: 'do the thing you\'ve been putting off, together', tag: 'TALK', type: 'Mystery', cat: 'mystery', place: 'wherever it needs to happen', note: 'you both know what this is.' },
+  { label: "MATE'S PICK",   icon: '🤝', name: "mate's pick",                    tag: 'PICK',    type: 'Wildcard',   cat: 'mate',     place: 'TBC',          note: 'hand your phone to a friend — their call, your duo activity.' },
+  { label: "MATE'S PICK",   icon: '🤝', name: "mate's pick",                    tag: 'PICK',    type: 'Wildcard',   cat: 'mate',     place: 'TBC',          note: 'hand your phone to a friend — their call, your duo activity.' },
+  { label: 'NEW THING',     icon: '✨', name: 'try something neither of you has ever done, together', tag: 'WILD', type: 'First-timer', cat: 'locked', place: 'TBC', note: 'today\'s the day, and you\'re doing it together.' },
+];
+
+// challenge templates — each is its own 30-wedge wheel. the active
+// template's activities array is aliased onto the mutable `ACTIVITIES`
+// binding below, so the rest of the app (wheel draw, spin, mission bar,
+// export, edit-activities) just reads/writes "the current wheel" without
+// needing to know templates exist.
+const TEMPLATES = [
+  { id: 'no-excuses',     name: 'No Excuses',     category: 'Fitness',    icon: '🔥', tagline: '30 days. no excuses.',                     activities: NO_EXCUSES_ACTIVITIES },
+  { id: 'reset-30',       name: 'Reset 30',       category: 'Habit',      icon: '🌱', tagline: '30 days. small resets, no skipping.',       activities: RESET_ACTIVITIES },
+  { id: 'creative-spark', name: 'Creative Spark', category: 'Creativity', icon: '✨', tagline: '30 days. make something, every day.',       activities: CREATIVE_ACTIVITIES },
+  { id: 'duo-challenge',  name: 'Duo Challenge',  category: 'Social',     icon: '👯', tagline: '30 days. every wedge is a two-person job.', activities: DUO_ACTIVITIES },
+];
+
+let currentTemplateId = 'no-excuses';
+let ACTIVITIES = TEMPLATES[0].activities; // reassigned by loadTemplate() when the user switches challenges
+
 // TODO(boss finish): flag any index below as the day-30 "boss" to give the
 // challenge a peak finish. Currently hard-wired to the last activity (index 29).
 // To customize, change BOSS_INDEX and extend the finale copy in showFinale().
@@ -51,9 +169,38 @@ const COLORS = {
   vermilion: '#E5461F', gold: '#E9B21C', forest: '#1B4332', ash: '#6E6A60',
 };
 
-const STORAGE_KEY = 'noexcuses:v1';
-const OVERRIDES_KEY = 'noexcuses:overrides:v1';
+// state, overrides, and archive are namespaced per template so switching
+// challenges (or running the same one again) never clobbers another
+// template's in-progress or past cycles.
+const CURRENT_TEMPLATE_KEY = 'noexcuses:currentTemplate:v1';
+const ARCHIVE_KEY = 'noexcuses:archive:v1';
+const LEGACY_STORAGE_KEY = 'noexcuses:v1';
+const LEGACY_OVERRIDES_KEY = 'noexcuses:overrides:v1';
 const WEDGE_ANGLE = (Math.PI * 2) / 30;
+
+function stateKeyFor(templateId) { return `noexcuses:v1:${templateId}`; }
+function overridesKeyFor(templateId) { return `noexcuses:overrides:v1:${templateId}`; }
+
+// one-time migration: the original single-template version of the app stored
+// state/overrides under un-namespaced keys. fold that into the 'no-excuses'
+// template's namespaced keys so existing players keep their progress.
+function migrateLegacyStorage() {
+  try {
+    const legacyState = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (legacyState != null && localStorage.getItem(stateKeyFor('no-excuses')) == null) {
+      localStorage.setItem(stateKeyFor('no-excuses'), legacyState);
+    }
+    if (legacyState != null) localStorage.removeItem(LEGACY_STORAGE_KEY);
+
+    const legacyOverrides = localStorage.getItem(LEGACY_OVERRIDES_KEY);
+    if (legacyOverrides != null && localStorage.getItem(overridesKeyFor('no-excuses')) == null) {
+      localStorage.setItem(overridesKeyFor('no-excuses'), legacyOverrides);
+    }
+    if (legacyOverrides != null) localStorage.removeItem(LEGACY_OVERRIDES_KEY);
+  } catch (e) {
+    console.warn('noexcuses: legacy storage migration failed', e);
+  }
+}
 
 // ---------------------------------------------------------------
 // STATE + PERSISTENCE
@@ -65,8 +212,9 @@ let state = {
 };
 
 function loadState() {
+  state = { version: 1, committed: [], lastTag: null };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(stateKeyFor(currentTemplateId));
     if (!raw) return;
     const parsed = JSON.parse(raw);
     if (parsed && parsed.version === 1 && Array.isArray(parsed.committed)) {
@@ -79,7 +227,7 @@ function loadState() {
 
 function saveState() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(stateKeyFor(currentTemplateId), JSON.stringify(state));
   } catch (e) {
     console.warn('noexcuses: failed to save state', e);
   }
@@ -104,8 +252,9 @@ function currentDay() {
 let overrides = {}; // { [index]: { name, place, note } }
 
 function loadOverrides() {
+  overrides = {};
   try {
-    const raw = localStorage.getItem(OVERRIDES_KEY);
+    const raw = localStorage.getItem(overridesKeyFor(currentTemplateId));
     if (!raw) return;
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object') overrides = parsed;
@@ -116,7 +265,7 @@ function loadOverrides() {
 
 function saveOverrides() {
   try {
-    localStorage.setItem(OVERRIDES_KEY, JSON.stringify(overrides));
+    localStorage.setItem(overridesKeyFor(currentTemplateId), JSON.stringify(overrides));
   } catch (e) {
     console.warn('noexcuses: failed to save overrides', e);
   }
@@ -144,6 +293,73 @@ function setOverride(index, field, value) {
 // these lock in on landing but block cross-off until a name is filled in.
 function needsFillIn(activity) {
   return activity.cat === 'mate' || activity.cat === 'stranger' || activity.tag === 'WILD';
+}
+
+// ---------------------------------------------------------------
+// ARCHIVE — past cycles (completed or reset) across every template, so
+// history survives starting a new cycle or switching challenges.
+// ---------------------------------------------------------------
+let archive = []; // [{ id, templateId, templateName, templateIcon, status, startedAt, endedAt, committed: [{ index, done, committedAt, doneAt, activity }] }]
+
+function loadArchive() {
+  archive = [];
+  try {
+    const raw = localStorage.getItem(ARCHIVE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) archive = parsed;
+  } catch (e) {
+    console.warn('noexcuses: failed to load archive', e);
+  }
+}
+
+function saveArchive() {
+  try {
+    localStorage.setItem(ARCHIVE_KEY, JSON.stringify(archive));
+  } catch (e) {
+    console.warn('noexcuses: failed to save archive', e);
+  }
+}
+
+// snapshots the current cycle (with overrides baked in, since overrides are
+// reused by index across future cycles of the same template) into the
+// archive, then clears state.committed so a fresh cycle can begin. no-ops if
+// nothing has been done yet.
+function archiveCurrentCycle(status) {
+  if (!state.committed.length) return;
+  const tpl = TEMPLATES.find(t => t.id === currentTemplateId) || TEMPLATES[0];
+  archive.push({
+    id: `${currentTemplateId}-${Date.now()}`,
+    templateId: currentTemplateId,
+    templateName: tpl.name,
+    templateIcon: tpl.icon,
+    status, // 'complete' | 'reset'
+    startedAt: state.committed[0].committedAt,
+    endedAt: Date.now(),
+    committed: state.committed.map(c => ({
+      ...c,
+      activity: getActivity(c.index),
+      comment: (overrides[c.index] && overrides[c.index].comment) || '',
+    })),
+  });
+  saveArchive();
+  state = { version: 1, committed: [], lastTag: null };
+  saveState();
+}
+
+// switches the active challenge: loads that template's own in-progress
+// cycle (or a fresh one) without touching any other template's saved state.
+function loadTemplate(templateId) {
+  const tpl = TEMPLATES.find(t => t.id === templateId) || TEMPLATES[0];
+  currentTemplateId = tpl.id;
+  ACTIVITIES = tpl.activities;
+  try { localStorage.setItem(CURRENT_TEMPLATE_KEY, currentTemplateId); } catch (e) { /* ignore */ }
+  loadState();
+  loadOverrides();
+  wheelRotation = 0;
+  currentResultIndex = -1;
+  resultOverlay.hidden = true;
+  updateTemplateBadge();
 }
 
 // ---------------------------------------------------------------
@@ -183,13 +399,21 @@ const crossedCount = $('crossedCount');
 const progressFill = $('progressFill');
 const finaleOverlay = $('finaleOverlay');
 const finaleResetBtn = $('finaleResetBtn');
+const finaleNewChallengeBtn = $('finaleNewChallengeBtn');
 const saveStoryFinaleBtn = $('saveStoryFinaleBtn');
 const exportCanvas = $('exportCanvas');
+const templateBadge = $('templateBadge');
+const templateBadgeIcon = $('templateBadgeIcon');
+const templateBadgeName = $('templateBadgeName');
+const templateOverlay = $('templateOverlay');
+const templateCloseBtn = $('templateCloseBtn');
+const templateGrid = $('templateGrid');
 const menuBtn = $('menuBtn');
 const menuPanel = $('menuPanel');
 const menuBackdrop = $('menuBackdrop');
 const menuSaveStory = $('menuSaveStory');
 const menuRecordClip = $('menuRecordClip');
+const menuTemplates = $('menuTemplates');
 const menuEditActivities = $('menuEditActivities');
 const menuHistory = $('menuHistory');
 const menuReset = $('menuReset');
@@ -729,9 +953,12 @@ missionFillInput.addEventListener('keydown', (e) => {
 finaleResetBtn.addEventListener('click', () => confirmReset());
 
 function confirmReset() {
-  if (window.confirm('reset the whole 30-day challenge? this cannot be undone.')) {
-    state = { version: 1, committed: [], lastTag: null };
-    saveState();
+  const finished = doneCount() >= 30;
+  const msg = finished
+    ? 'start a fresh cycle? this run gets saved to your activity tracker.'
+    : 'reset this challenge? your progress so far gets saved to your activity tracker.';
+  if (window.confirm(msg)) {
+    archiveCurrentCycle(finished ? 'complete' : 'reset');
     wheelRotation = 0;
     render();
   }
@@ -1136,6 +1363,114 @@ editCloseBtn.addEventListener('click', () => {
 });
 
 // ---------------------------------------------------------------
+// TEMPLATE GALLERY — switch between challenge wheels
+// ---------------------------------------------------------------
+function updateTemplateBadge() {
+  const tpl = TEMPLATES.find(t => t.id === currentTemplateId) || TEMPLATES[0];
+  templateBadgeIcon.textContent = tpl.icon;
+  templateBadgeName.textContent = tpl.name.toLowerCase();
+}
+
+// peeks at a template's saved progress without disturbing the currently
+// loaded state — used to show "12/30 done" on cards that aren't active.
+function peekTemplateDoneCount(templateId) {
+  if (templateId === currentTemplateId) return doneCount();
+  try {
+    const raw = localStorage.getItem(stateKeyFor(templateId));
+    if (!raw) return 0;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.committed)) return 0;
+    return parsed.committed.filter(c => c.done).length;
+  } catch (e) {
+    return 0;
+  }
+}
+
+function buildTemplateCard(tpl) {
+  const isActive = tpl.id === currentTemplateId;
+  const card = document.createElement('button');
+  card.type = 'button';
+  card.className = 'template-card' + (isActive ? ' is-active' : '');
+
+  const icon = document.createElement('div');
+  icon.className = 'template-card-icon';
+  icon.textContent = tpl.icon;
+
+  const body = document.createElement('div');
+  body.className = 'template-card-body';
+
+  const name = document.createElement('div');
+  name.className = 'template-card-name';
+  name.textContent = tpl.name.toLowerCase();
+
+  const meta = document.createElement('div');
+  meta.className = 'template-card-meta';
+  meta.textContent = tpl.category;
+
+  const tagline = document.createElement('div');
+  tagline.className = 'template-card-tagline';
+  tagline.textContent = tpl.tagline;
+
+  const done = peekTemplateDoneCount(tpl.id);
+  const progress = document.createElement('div');
+  progress.className = 'template-card-progress';
+  progress.textContent = done > 0 ? `${done}/30 done` : 'not started';
+
+  body.appendChild(name);
+  body.appendChild(meta);
+  body.appendChild(tagline);
+  body.appendChild(progress);
+
+  card.appendChild(icon);
+  card.appendChild(body);
+
+  if (isActive) {
+    const check = document.createElement('div');
+    check.className = 'template-card-check';
+    check.textContent = '✓';
+    card.appendChild(check);
+  }
+
+  card.addEventListener('click', () => {
+    if (tpl.id !== currentTemplateId) {
+      loadTemplate(tpl.id);
+      render();
+    }
+    templateOverlay.hidden = true;
+  });
+
+  return card;
+}
+
+function populateTemplateGrid() {
+  templateGrid.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  TEMPLATES.forEach(tpl => frag.appendChild(buildTemplateCard(tpl)));
+  templateGrid.appendChild(frag);
+}
+
+function openTemplateGallery() {
+  populateTemplateGrid();
+  templateOverlay.hidden = false;
+}
+
+templateBadge.addEventListener('click', () => openTemplateGallery());
+
+menuTemplates.addEventListener('click', () => {
+  closeMenu();
+  openTemplateGallery();
+});
+
+templateCloseBtn.addEventListener('click', () => {
+  templateOverlay.hidden = true;
+});
+
+finaleNewChallengeBtn.addEventListener('click', () => {
+  archiveCurrentCycle('complete');
+  openTemplateGallery();
+});
+
+// ---------------------------------------------------------------
 // HISTORY — what you've actually completed, in order
 // ---------------------------------------------------------------
 function formatHistoryDate(ts) {
@@ -1388,19 +1723,127 @@ function buildHistoryRow(entry, dayIndex) {
   return row;
 }
 
+// a read-only row for a past (archived) cycle's entry — uses the resolved
+// activity/comment snapshotted at archive time rather than live ACTIVITIES/
+// overrides, since those belong to whichever template is currently loaded.
+function buildArchivedHistoryRow(entry, dayIndex) {
+  const a = entry.activity || {};
+
+  const row = document.createElement('div');
+  row.className = 'history-row history-row-archived';
+
+  const top = document.createElement('div');
+  top.className = 'history-row-top';
+
+  const day = document.createElement('div');
+  day.className = 'history-row-day';
+  day.textContent = `DAY ${String(dayIndex).padStart(2, '0')}`;
+
+  const icon = document.createElement('div');
+  icon.className = 'history-row-icon';
+  icon.textContent = a.icon || '•';
+
+  const main = document.createElement('div');
+  main.className = 'history-row-main';
+  const name = document.createElement('div');
+  name.className = 'history-row-name';
+  name.textContent = a.name || '';
+  const place = document.createElement('div');
+  place.className = 'history-row-place';
+  place.textContent = a.place || '';
+  main.appendChild(name);
+  main.appendChild(place);
+
+  const date = document.createElement('div');
+  date.className = 'history-row-date';
+  date.textContent = formatHistoryDate(entry.doneAt);
+
+  top.appendChild(day);
+  top.appendChild(icon);
+  top.appendChild(main);
+  top.appendChild(date);
+
+  const gallery = document.createElement('div');
+  gallery.className = 'history-row-gallery';
+
+  row.appendChild(top);
+  row.appendChild(gallery);
+
+  if (entry.comment) {
+    const comment = document.createElement('div');
+    comment.className = 'history-row-comment';
+    comment.textContent = entry.comment;
+    row.appendChild(comment);
+  }
+
+  renderGallery(gallery, entry);
+
+  return row;
+}
+
+function buildCycleSection(title, subtitle) {
+  const section = document.createElement('div');
+  section.className = 'history-cycle-section';
+
+  const header = document.createElement('div');
+  header.className = 'history-cycle-header';
+  const titleEl = document.createElement('div');
+  titleEl.className = 'history-cycle-title';
+  titleEl.textContent = title;
+  const subtitleEl = document.createElement('div');
+  subtitleEl.className = 'history-cycle-subtitle';
+  subtitleEl.textContent = subtitle;
+  header.appendChild(titleEl);
+  header.appendChild(subtitleEl);
+
+  const body = document.createElement('div');
+  body.className = 'history-cycle-body';
+
+  section.appendChild(header);
+  section.appendChild(body);
+
+  return { el: section, body };
+}
+
 function populateHistoryList() {
   revokeGalleryUrls();
   historyList.innerHTML = '';
-  const done = state.committed.filter(c => c.done);
-  if (done.length === 0) {
+  const frag = document.createDocumentFragment();
+
+  const currentTpl = TEMPLATES.find(t => t.id === currentTemplateId) || TEMPLATES[0];
+  const liveDone = state.committed.filter(c => c.done);
+  const currentSection = buildCycleSection(
+    `${currentTpl.icon} ${currentTpl.name.toLowerCase()} — current cycle`,
+    liveDone.length ? `${liveDone.length}/30 done` : 'not started'
+  );
+  if (liveDone.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'history-empty';
     empty.textContent = 'nothing crossed off yet — go spin.';
-    historyList.appendChild(empty);
-    return;
+    currentSection.body.appendChild(empty);
+  } else {
+    liveDone.forEach((entry, i) => currentSection.body.appendChild(buildHistoryRow(entry, i + 1)));
   }
-  const frag = document.createDocumentFragment();
-  done.forEach((entry, i) => frag.appendChild(buildHistoryRow(entry, i + 1)));
+  frag.appendChild(currentSection.el);
+
+  const pastCycles = archive.slice().sort((a, b) => b.endedAt - a.endedAt);
+  pastCycles.forEach((cycle) => {
+    const doneEntries = cycle.committed.filter(c => c.done);
+    const section = buildCycleSection(
+      `${cycle.templateIcon} ${cycle.templateName.toLowerCase()} — ${cycle.status === 'complete' ? 'completed' : 'ended early'}`,
+      `${doneEntries.length}/30 done · ${formatHistoryDate(cycle.endedAt)}`
+    );
+    if (doneEntries.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'history-empty';
+      empty.textContent = 'no activities crossed off in this cycle.';
+      section.body.appendChild(empty);
+    } else {
+      doneEntries.forEach((entry, i) => section.body.appendChild(buildArchivedHistoryRow(entry, i + 1)));
+    }
+    frag.appendChild(section.el);
+  });
+
   historyList.appendChild(frag);
 }
 
@@ -1544,8 +1987,11 @@ spinBtn.addEventListener('click', () => {
 });
 
 function init() {
-  loadState();
-  loadOverrides();
+  migrateLegacyStorage();
+  loadArchive();
+  let savedTemplateId = 'no-excuses';
+  try { savedTemplateId = localStorage.getItem(CURRENT_TEMPLATE_KEY) || savedTemplateId; } catch (e) { /* ignore */ }
+  loadTemplate(savedTemplateId);
   resizeCanvas();
   render();
   registerSW();

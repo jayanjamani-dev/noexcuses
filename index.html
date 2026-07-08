@@ -51,6 +51,10 @@
       <div class="handle">@jayandred</div>
     </div>
     <div class="header-right">
+      <button class="template-badge" id="templateBadge" type="button" aria-label="switch challenge">
+        <span class="template-badge-icon" id="templateBadgeIcon">🔥</span>
+        <span class="template-badge-name" id="templateBadgeName">no excuses</span>
+      </button>
       <div class="daycounter">
         <span class="day-label">DAY</span>
         <span class="day-num" id="dayNum">01</span>
@@ -64,11 +68,21 @@
   <div class="menu-panel" id="menuPanel" hidden>
     <button class="menu-item" id="menuSaveStory" type="button"><span class="menu-item-icon">📤</span>save story</button>
     <button class="menu-item" id="menuRecordClip" type="button"><span class="menu-item-icon">🎥</span>record clip</button>
+    <button class="menu-item" id="menuTemplates" type="button"><span class="menu-item-icon">🗂️</span>switch challenge</button>
     <button class="menu-item" id="menuEditActivities" type="button"><span class="menu-item-icon">✎</span>edit activities</button>
     <button class="menu-item" id="menuHistory" type="button"><span class="menu-item-icon">📜</span>activity tracker</button>
     <button class="menu-item menu-item-danger" id="menuReset" type="button"><span class="menu-item-icon">↺</span>reset</button>
   </div>
   <div class="menu-backdrop" id="menuBackdrop" hidden></div>
+
+  <!-- challenge gallery overlay: pick which template wheel is active -->
+  <div class="edit-overlay" id="templateOverlay" hidden>
+    <div class="edit-header">
+      <span class="edit-title">choose a challenge</span>
+      <button class="edit-close" id="templateCloseBtn" type="button" aria-label="close">✕</button>
+    </div>
+    <div class="template-grid" id="templateGrid"></div>
+  </div>
 
   <!-- edit activities overlay -->
   <div class="edit-overlay" id="editOverlay" hidden>
@@ -206,7 +220,8 @@
       <div class="finale-title">no more excuses<span class="dot">.</span></div>
       <div class="finale-sub">you did the whole thing.</div>
       <button class="btn-story" id="saveStoryFinaleBtn" type="button">save story</button>
-      <button class="reset-btn" id="finaleResetBtn" type="button">reset &amp; go again</button>
+      <button class="reset-btn" id="finaleResetBtn" type="button">run it again</button>
+      <button class="reset-btn finale-new-challenge-btn" id="finaleNewChallengeBtn" type="button">choose a new challenge</button>
     </div>
   </div>
 
